@@ -13,15 +13,18 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+    ],
 });
 
 const PREFIX = '!';
-const LOG_CHANNEL_ID = '1483551045711040605'; // ID ห้องที่คุณตั้งชื่อไว้ว่า "1"
+const LOG_CHANNEL_ID = '1483551045711040605'; 
 
 client.once('ready', () => {
-    console.log(`Log in as: ${client.user.tag}`);
-    client.user.setActivity('Leveling System', { type: ActivityType.Competing });
+    console.log(`Log in as: ${client.user.tag} ✅`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -30,7 +33,7 @@ client.on('messageCreate', async (message) => {
     let userData = await User.findOne({ userId: message.author.id });
     if (!userData) userData = new User({ userId: message.author.id });
 
-    const addXp = Math.floor(Math.random() * 10) + 15;
+    const addXp = Math.floor(Math.random() * 11) + 15;
     userData.xp += addXp;
 
     const nextLevelXP = userData.level * 100;
@@ -40,35 +43,37 @@ client.on('messageCreate', async (message) => {
         
         const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
         if (logChannel) {
-            // 1. ตกแต่งชื่อห้องใหม่ (จาก #1 เป็นชื่อที่ดูเท่ขึ้น)
-            // ใส่ Emoji และขีดกลางเพื่อให้ดูเป็นระเบียบตามสไตล์ Discord
-            logChannel.setName(`🏆┃level-up-${userData.level}`).catch(() => {});
+            // --- ส่วนการเปลี่ยนชื่อห้องแบบมีระบบตรวจสอบ ---
+            console.log(`พยายามเปลี่ยนชื่อห้องเป็น: 🏆┃level-up-${userData.level}`);
+            
+            logChannel.setName(`🏆┃level-up-${userData.level}`)
+                .then(updated => console.log(`Successfully renamed to: ${updated.name}`))
+                .catch(err => {
+                    console.error('❌ ไม่สามารถเปลี่ยนชื่อห้องได้!');
+                    console.error('เหตุผลที่แท้จริง:', err.message);
+                    // ถ้า Error แจ้งว่า "Rate Limited" แปลว่าต้องรอ 10 นาทีครับ
+                });
 
-            // 2. สร้าง Embed แบบตกแต่งจัดเต็ม
             const levelEmbed = new EmbedBuilder()
-                .setColor('#00FF7F') // สีเขียวนีออน
-                .setAuthor({ name: 'LEVEL UP! เก่งเกินคุณน้า', iconURL: message.author.displayAvatarURL() })
-                .setDescription(`✨ วาสนาผู้ใดหนอ... ยินดีด้วยกับ **${message.author.username}**!\nตอนนี้คุณอัปเกรดเป็นเลเวล **${userData.level}** เรียบร้อยแล้ว`)
-                .addFields(
-                    { name: '🔥 เลเวลปัจจุบัน', value: `\` ${userData.level} \``, inline: true },
-                    { name: '⭐ XP สะสม', value: `\` ${userData.xp} \``, inline: true }
-                )
-                .setThumbnail('https://i.imgur.com/8S9X9pX.gif') // ใส่ GIF ตกแต่ง (ถ้ามี)
-                .setFooter({ text: 'MasaruBot • ระบบจัดเก็บข้อมูลถาวร MongoDB', iconURL: client.user.displayAvatarURL() })
+                .setColor('#00FF7F')
+                .setAuthor({ name: 'LEVEL UP!', iconURL: message.author.displayAvatarURL() })
+                .setDescription(`ยินดีด้วยกับ **${message.author.username}**!\nเลเวลอัปเป็น **${userData.level}** แล้วครับ`)
                 .setTimestamp();
 
-            logChannel.send({ content: `<@${message.author.id}> ตัวตึงเลเวลอัป!`, embeds: [levelEmbed] });
+            logChannel.send({ content: `<@${message.author.id}>`, embeds: [levelEmbed] });
+        } else {
+            console.error('❌ หาห้องไม่เจอ! โปรดเช็ค LOG_CHANNEL_ID อีกครั้ง');
         }
     }
     await userData.save();
 
-    // --- Commands ---
+    // Commands อื่นๆ
     if (!message.content.startsWith(PREFIX)) return;
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
     if (command === 'level' || command === 'lv') {
-        message.reply(`📊 **${message.author.username}**\nLevel: \`${userData.level}\` | XP: \`${userData.xp}/${userData.level * 100}\``);
+        message.reply(`📊 **${message.author.username}** | Level: ${userData.level} | XP: ${userData.xp}/${userData.level * 100}`);
     }
 });
 
