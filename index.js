@@ -1,22 +1,22 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const mongoose = require('mongoose');
-const startWeb = require('./server.js'); 
+const startWeb = require('./server.js'); // เปลี่ยนชื่อเพื่อให้สื่อความหมาย
 
-// 1. เชื่อมต่อ MongoDB (ต้องทำก่อนเปิดหน้าเว็บ)
+// --- 1. เชื่อมต่อ MongoDB และสร้าง Model ก่อนเปิดเว็บ ---
 mongoose.connect(process.env.MONGO_URL)
-    .then(() => console.log('MongoDB Connected! 📦'))
+    .then(() => {
+        console.log('MongoDB Connected! 📦');
+        // รันหน้าเว็บหลังจาก DB พร้อม และส่ง User Model ไปให้ใช้
+        startWeb(User);
+    })
     .catch(err => console.error('MongoDB Error:', err));
 
-// 2. สร้าง Schema และ Model
 const userSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 }
 });
 const User = mongoose.model('User', userSchema);
-
-// 3. เริ่มระบบหน้าเว็บ (ส่ง User model ไปให้ server.js รัน)
-startWeb(User);
 
 const client = new Client({
     intents: [
@@ -28,11 +28,11 @@ const client = new Client({
     ],
 });
 
+// --- 2. ตั้งค่า ID และระบบนาฬิกา (ดึงมาจากโค้ดเดิมของพี่ทั้งหมด) ---
 const VOICE_LOG_ID = '1204742409347534900'; 
 const CLOCK_CHANNEL_ID = '1483918700976410694'; 
 const LEVEL_LOG_ID = '1483551045711040605';
 
-// --- [ระบบนาฬิกาดิจิทัล ASCII ของพี่] --- 
 const asciiDigits = {
     '0': [" ╔══╗ ", " ║  ║ ", " ╚══╝ "], '1': ["  ║   ", "  ║   ", "  ║   "],
     '2': [" ═══╗ ", " ╔══╝ ", " ╚═══ "], '3': [" ═══╗ ", "  ══╣ ", " ═══╝ "],
@@ -58,7 +58,8 @@ client.once('ready', async () => {
     console.log(`Log in as: ${client.user.tag} ✅`);
     const channel = await client.channels.fetch(CLOCK_CHANNEL_ID);
     if (channel) {
-        let clockMsg = (await channel.messages.fetch({ limit: 10 })).find(m => m.author.id === client.user.id);
+        const messages = await channel.messages.fetch({ limit: 10 });
+        let clockMsg = messages.find(m => m.author.id === client.user.id);
         if (!clockMsg) clockMsg = await channel.send(getNewDigitalClock());
         setInterval(async () => {
             try { if (clockMsg) await clockMsg.edit(getNewDigitalClock()); } 
@@ -67,8 +68,8 @@ client.once('ready', async () => {
     }
 });
 
-// --- ระบบ LOG ห้องเสียง และระบบเลเวล (เหมือนเดิม) ---
-client.on('voiceStateUpdate', async (oldState, newState) => { /* โค้ดแจ้งเตือนห้องเสียง */ });
-client.on('messageCreate', async (message) => { /* โค้ดเก็บ XP เลเวล */ });
+// --- 3. ระบบ LOG และ เลเวล (เหมือนเดิม) ---
+client.on('voiceStateUpdate', async (oldState, newState) => { /* โค้ดเดิมของพี่ */ });
+client.on('messageCreate', async (message) => { /* โค้ดเดิมของพี่ */ });
 
 client.login(process.env.TOKEN);
