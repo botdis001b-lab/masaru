@@ -1,21 +1,22 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const mongoose = require('mongoose');
-const keepAlive = require('./server.js'); // เรียกใช้หน้าเว็บ
+const keepAlive = require('./server.js'); // ดึงไฟล์หน้าเว็บมาเตรียมไว้
 
-// --- 1. เริ่มระบบหน้าเว็บ ---
-keepAlive();
-
-// --- 2. เชื่อมต่อ MongoDB ---
+// --- 1. เชื่อมต่อ MongoDB ---
 mongoose.connect(process.env.MONGO_URL)
     .then(() => console.log('MongoDB Connected! 📦'))
     .catch(err => console.error('MongoDB Error:', err));
 
+// --- 2. สร้าง Schema และ Model (ต้องทำก่อนเปิดหน้าเว็บ) ---
 const userSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 }
 });
 const User = mongoose.model('User', userSchema);
+
+// --- 3. เริ่มระบบหน้าเว็บ (ย้ายมาตรงนี้เพื่อให้รู้จัก Model User แล้ว) ---
+keepAlive();
 
 const client = new Client({
     intents: [
@@ -27,12 +28,12 @@ const client = new Client({
     ],
 });
 
-// --- 3. ตั้งค่า ID ต่างๆ ---
+// --- 4. ตั้งค่า ID ต่างๆ ---
 const VOICE_LOG_ID = '1204742409347534900'; 
 const CLOCK_CHANNEL_ID = '1483918700976410694'; 
 const LEVEL_LOG_ID = '1483551045711040605';
 
-// ฟอนต์ Digital ASCII (แบบเส้นโปร่ง อ่านง่าย)
+// ฟอนต์ Digital ASCII สำหรับนาฬิกา
 const asciiDigits = {
     '0': [" ╔══╗ ", " ║  ║ ", " ╚══╝ "], '1': ["  ║   ", "  ║   ", "  ║   "],
     '2': [" ═══╗ ", " ╔══╝ ", " ╚═══ "], '3': [" ═══╗ ", "  ══╣ ", " ═══╝ "],
@@ -57,38 +58,32 @@ function getNewDigitalClock() {
 
 let clockMsg = null;
 
-// --- 4. การทำงานเมื่อบอท Online ---
+// --- 5. การทำงานเมื่อบอท Online ---
 client.once('ready', async () => {
     console.log(`Log in as: ${client.user.tag} ✅`);
     
     const channel = await client.channels.fetch(CLOCK_CHANNEL_ID);
     if (channel) {
-        // --- ส่วนที่แก้ไข: ป้องกันการส่งข้อความใหม่ซ้ำๆ ---
         const messages = await channel.messages.fetch({ limit: 10 });
-        // หาข้อความล่าสุดที่บอทเป็นคนส่ง
         clockMsg = messages.find(m => m.author.id === client.user.id);
 
         if (!clockMsg) {
-            // ถ้าไม่เจอข้อความเก่าเลย ถึงจะส่งใหม่
             clockMsg = await channel.send(getNewDigitalClock());
         } else {
-            // ถ้าเจออันเก่า ให้แก้ไขอันนั้นทันที
             await clockMsg.edit(getNewDigitalClock());
         }
 
-        // อัปเดตนาฬิกาทุก 10 วินาที
         setInterval(async () => {
             try {
                 if (clockMsg) await clockMsg.edit(getNewDigitalClock());
             } catch (err) {
-                // ถ้าเผลอไปลบอันเก่า ให้สร้างใหม่
                 clockMsg = await channel.send(getNewDigitalClock());
             }
         }, 10000); 
     }
 });
 
-// --- 5. ระบบ LOG ห้องเสียง ---
+// --- 6. ระบบ LOG ห้องเสียง ---
 client.on('voiceStateUpdate', async (oldState, newState) => {
     try {
         const logChannel = await client.channels.fetch(VOICE_LOG_ID);
@@ -106,7 +101,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     } catch (err) { console.error(err); }
 });
 
-// --- 6. ระบบเลเวล ---
+// --- 7. ระบบเลเวล ---
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
     try {
@@ -118,7 +113,6 @@ client.on('messageCreate', async (message) => {
             userData.level++;
             const logChannel = await client.channels.fetch(LEVEL_LOG_ID);
             if (logChannel) {
-                await logChannel.setName(`🏆┃level-${userData.level}`).catch(() => {});
                 await logChannel.send({ embeds: [new EmbedBuilder().setColor('#00FF7F').setDescription(`\`\`\`fix\n🎊 เลเวลอัป: ${userData.level}\nผู้ใช้: ${message.author.username}\n\`\`\``)] });
             }
         }
