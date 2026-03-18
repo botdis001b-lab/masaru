@@ -20,7 +20,7 @@ module.exports = function(User) {
     }));
 
     app.use(session({
-        secret: 'masaru-secret-key-v3',
+        secret: 'masaru-secret-v4',
         resave: false,
         saveUninitialized: false
     }));
@@ -28,10 +28,11 @@ module.exports = function(User) {
     app.use(passport.initialize());
     app.use(passport.session());
 
-    // หน้าแรก
+    // หน้าแรก Dashboard ใหม่
     app.get('/', (req, res) => {
         res.send(`<body style="background:#23272a;color:white;text-align:center;font-family:sans-serif;padding-top:100px;">
-            <h1 style="font-size:40px;">🚀 Masaru Bot Dashboard</h1>
+            <h1 style="font-size:40px;">🚀 Masaru Dashboard</h1>
+            <p>ระบบเลเวลและข้อมูลสมาชิก</p><br>
             <a href="/login" style="background:#5865F2;color:white;padding:15px 40px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:20px;">Login with Discord</a>
         </body>`);
     });
@@ -41,7 +42,6 @@ module.exports = function(User) {
         res.redirect('/profile');
     });
 
-    // หน้าโปรไฟล์ (โชว์เวล)
     app.get('/profile', async (req, res) => {
         if (!req.isAuthenticated()) return res.redirect('/');
         const userData = await User.findOne({ userId: req.user.id });
@@ -52,10 +52,8 @@ module.exports = function(User) {
                 <img src="${avatarUrl}" style="border-radius:50%;width:120px;border:4px solid #5865F2;">
                 <h2>ยินดีต้อนรับคุณ ${req.user.username}</h2>
                 <hr style="border:0;border-top:1px solid #444;">
-                <div style="display:flex;justify-content:space-around;gap:20px;margin-top:20px;">
-                    <div><p style="color:#b9bbbe;margin:0;">Level</p><h3 style="color:#f1c40f;font-size:30px;margin:5px 0;">${userData ? userData.level : 1}</h3></div>
-                    <div><p style="color:#b9bbbe;margin:0;">XP</p><h3 style="color:#f1c40f;font-size:30px;margin:5px 0;">${userData ? userData.xp : 0}</h3></div>
-                </div>
+                <p style="font-size:20px;">Level: <span style="color:#f1c40f;">${userData ? userData.level : 1}</span></p>
+                <p>XP: ${userData ? userData.xp : 0}</p>
                 <br><a href="/logout" style="color:#ed4245;">ออกจากระบบ</a>
             </div>
         </body>`);
