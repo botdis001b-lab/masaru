@@ -1,7 +1,7 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const mongoose = require('mongoose');
 
-// --- 1. เชื่อมต่อ MongoDB ---
+// --- 1. เชื่อมต่อฐานข้อมูล ---
 mongoose.connect(process.env.MONGO_URL)
     .then(() => console.log('MongoDB Connected! 📦'))
     .catch(err => console.error('MongoDB Error:', err));
@@ -13,7 +13,6 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// --- 2. ตั้งค่าบอท ---
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -24,23 +23,27 @@ const client = new Client({
     ],
 });
 
-// --- 3. ตั้งค่า ID ห้อง (ตรวจสอบให้ตรง) ---
-const PREFIX = '!';
+// --- 2. ตั้งค่า ID ห้อง ---
 const LEVEL_LOG_ID = '1483551045711040605'; 
 const VOICE_LOG_ID = '1204742409347534900'; 
-const CLOCK_CHANNEL_ID = '1483918700976410694'; // ห้อง #วัน-เวลา
+const CLOCK_CHANNEL_ID = '1483918700976410694'; 
 
-// --- 4. ฟังก์ชันนาฬิกา ASCII ---
+// --- 3. ฟอนต์ Digital ASCII แบบใหม่ (Line Style) ---
 const asciiDigits = {
-    '0': ["  ███  ", " ██ █  ", "  ███  "], '1': ["   █   ", "   █   ", "   █   "],
-    '2': [" ███   ", "   █   ", " ███   "], '3': [" ███   ", "  ██   ", " ███   "],
-    '4': [" █ █   ", " ███   ", "   █   "], '5': [" ███   ", " ██    ", " ███   "],
-    '6': [" ███   ", " █     ", " ███   "], '7': [" ███   ", "   █   ", "   █   "],
-    '8': [" ███   ", " ███   ", " ███   "], '9': [" ███   ", " █ ██  ", "  ███  "],
-    ':': ["   ", " █ ", " █ "]
+    '0': [" ╔══╗ ", " ║  ║ ", " ╚══╝ "],
+    '1': ["  ║   ", "  ║   ", "  ║   "],
+    '2': [" ═══╗ ", " ╔══╝ ", " ╚═══ "],
+    '3': [" ═══╗ ", "  ══╣ ", " ═══╝ "],
+    '4': [" ║  ║ ", " ╚══╣ ", "    ║ "],
+    '5': [" ╔═══ ", " ╚══╗ ", " ═══╝ "],
+    '6': [" ╔═══ ", " ╠══╗ ", " ╚══╝ "],
+    '7': [" ═══╗ ", "    ║ ", "    ║ "],
+    '8': [" ╔══╗ ", " ╠══╣ ", " ╚══╝ "],
+    '9': [" ╔══╗ ", " ╚══╣ ", " ═══╝ "],
+    ':': ["   ", " ═ ", " ═ "]
 };
 
-function getFullClockDisplay() {
+function getNewDigitalClock() {
     const now = new Date();
     const timeStr = now.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     const dateStr = now.toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'long', year: 'numeric' });
@@ -52,32 +55,29 @@ function getFullClockDisplay() {
         for (let i = 0; i < 3; i++) lines[i] += digit[i];
     });
 
-    return `\`\`\`fix\n${lines.join('\n')}\n\n📅 วันที่: ${dateStr}\n⏱️ อัปเดตล่าสุด: ${timeStr} น.\n\`\`\``;
+    return `### 🕒 ระบบนาฬิกาดิจิทัล (Real-time)\n\`\`\`fix\n${lines.join('\n')}\n\`\`\`\n> 📅 **วันที่:** ${dateStr}\n> ⏱️ **อัปเดตล่าสุด:** ${timeStr} น.`;
 }
 
 let clockMsg = null;
 
-// --- 5. เมื่อบอทออนไลน์ (แก้ไขเป็น clientReady ตามคำแนะนำของระบบ) ---
+// --- 4. เริ่มการทำงาน ---
 client.once('ready', async () => {
     console.log(`Log in as: ${client.user.tag} ✅`);
     
     const channel = await client.channels.fetch(CLOCK_CHANNEL_ID);
     if (channel) {
-        // ส่งข้อความใหม่ทันทีเมื่อบอท Start
-        clockMsg = await channel.send(getFullClockDisplay());
-        
-        // ตั้งให้แก้ข้อความทุก 10 วินาที
+        clockMsg = await channel.send(getNewDigitalClock());
         setInterval(async () => {
             try {
-                if (clockMsg) await clockMsg.edit(getFullClockDisplay());
+                if (clockMsg) await clockMsg.edit(getNewDigitalClock());
             } catch (err) {
-                clockMsg = await channel.send(getFullClockDisplay());
+                clockMsg = await channel.send(getNewDigitalClock());
             }
-        }, 10000); 
+        }, 10000); // อัปเดตทุก 10 วินาที
     }
 });
 
-// --- 6. ระบบ LOG ห้องเสียง ---
+// --- 5. ระบบ LOG ห้องเสียง ---
 client.on('voiceStateUpdate', async (oldState, newState) => {
     try {
         const logChannel = await client.channels.fetch(VOICE_LOG_ID);
@@ -95,7 +95,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     } catch (err) { console.error(err); }
 });
 
-// --- 7. ระบบเลเวล ---
+// --- 6. ระบบเลเวล ---
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
     try {
@@ -115,11 +115,6 @@ client.on('messageCreate', async (message) => {
         }
         await userData.save();
     } catch (err) { console.error(err); }
-
-    if (message.content === '!level') {
-        const data = await User.findOne({ userId: message.author.id });
-        message.reply(`📊 Level: **${data ? data.level : 1}** | XP: **${data ? data.xp : 0}/${(data ? data.level : 1) * 100}**`);
-    }
 });
 
 client.login(process.env.TOKEN);
