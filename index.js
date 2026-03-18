@@ -19,44 +19,41 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildVoiceStates, // *** สำคัญมากสำหรับการดูคนเข้า-ออกห้องเสียง ***
+        GatewayIntentBits.GuildVoiceStates,
     ],
 });
 
 const PREFIX = '!';
-const LEVEL_LOG_ID = '1483551045711040605'; // ห้องแจ้งเลเวลอัป
-const VOICE_LOG_ID = '1204742409347534900'; // ห้องแจ้งเข้า-ออกห้องเสียง (#เข้า-ออกดิส)
+const LEVEL_LOG_ID = '1483551045711040605';
+const VOICE_LOG_ID = '1204742409347534900';
 
 client.once('ready', async () => {
     console.log(`Log in as: ${client.user.tag} ✅`);
-    
-    // ระบบทดสอบการส่งข้อความเมื่อบอทเริ่มทำงาน
     try {
         const testChannel = await client.channels.fetch(VOICE_LOG_ID);
         if (testChannel) {
-            await testChannel.send('⚙️ **ระบบ Voice LOG พร้อมใช้งาน:** ตรวจสอบสิทธิ์การส่งข้อความสำเร็จ!');
-            console.log(`[System] ตรวจพบห้อง LOG: ${testChannel.name} และส่งข้อความทดสอบแล้ว ✅`);
+            await testChannel.send('```diff\n+ [System] ระบบ Voice LOG เริ่มทำงานเรียบร้อยแล้ว\n```');
         }
     } catch (err) {
-        console.error(`[Error] บอทเข้าไม่ถึงห้อง LOG: ${err.message}`);
+        console.error(`[Error] ${err.message}`);
     }
 });
 
-// --- ระบบ LOG การเข้า-ออก และย้ายห้องเสียง ---
+// --- ระบบ LOG การเข้า-ออกห้องเสียง (รูปแบบ Code Block) ---
 client.on('voiceStateUpdate', async (oldState, newState) => {
     try {
         const logChannel = await client.channels.fetch(VOICE_LOG_ID);
         if (!logChannel) return;
 
         const member = newState.member || oldState.member;
-        if (member.user.bot) return; // ไม่บันทึกบอท
+        if (member.user.bot) return;
 
         // 1. กรณีเข้าห้องเสียง
         if (!oldState.channelId && newState.channelId) {
             const embed = new EmbedBuilder()
                 .setColor('#2ECC71')
                 .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
-                .setDescription(`🟢 <@${member.id}> **เข้าห้องเสียง:** \`${newState.channel.name}\``)
+                .setDescription(`\`\`\`diff\n+ [เข้าห้อง]: ${newState.channel.name}\n- โดย: ${member.user.tag}\n\`\`\``)
                 .setTimestamp();
             await logChannel.send({ embeds: [embed] });
         }
@@ -66,7 +63,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             const embed = new EmbedBuilder()
                 .setColor('#E74C3C')
                 .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
-                .setDescription(`🔴 <@${member.id}> **ออกจากห้องเสียง:** \`${oldState.channel.name}\``)
+                .setDescription(`\`\`\`diff\n- [ออกห้อง]: ${oldState.channel.name}\n- โดย: ${member.user.tag}\n\`\`\``)
                 .setTimestamp();
             await logChannel.send({ embeds: [embed] });
         }
@@ -76,7 +73,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             const embed = new EmbedBuilder()
                 .setColor('#F1C40F')
                 .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
-                .setDescription(`🟡 <@${member.id}> **ย้ายห้อง:** \`${oldState.channel.name}\` ➡️ \`${newState.channel.name}\``)
+                .setDescription(`\`\`\`yaml\nย้ายห้อง: "${oldState.channel.name}"\nไปที่: "${newState.channel.name}"\nยูสเซอร์: ${member.user.tag}\n\`\`\``)
                 .setTimestamp();
             await logChannel.send({ embeds: [embed] });
         }
@@ -101,13 +98,10 @@ client.on('messageCreate', async (message) => {
             userData.level++;
             const logChannel = await client.channels.fetch(LEVEL_LOG_ID);
             if (logChannel) {
-                // พยายามเปลี่ยนชื่อห้อง (จำกัด 2 ครั้ง/10 นาที ตามกฎ Discord)
                 await logChannel.setName(`🏆┃level-${userData.level}`).catch(() => {});
-                
                 const levelEmbed = new EmbedBuilder()
                     .setColor('#00FF7F')
-                    .setAuthor({ name: 'LEVEL UP!', iconURL: message.author.displayAvatarURL() })
-                    .setDescription(`ยินดีด้วย <@${message.author.id}> เลเวลอัปเป็น **${userData.level}** แล้ว!`)
+                    .setDescription(`\`\`\`fix\n🎊 เลเวลอัป: ${userData.level}\nยูสเซอร์: ${message.author.username}\n\`\`\``)
                     .setTimestamp();
                 await logChannel.send({ embeds: [levelEmbed] });
             }
@@ -117,7 +111,6 @@ client.on('messageCreate', async (message) => {
         console.error('Level System Error:', err);
     }
 
-    // Commands
     if (!message.content.startsWith(PREFIX)) return;
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
