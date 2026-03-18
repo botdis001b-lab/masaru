@@ -17,16 +17,49 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers, // เพิ่มอันนี้เพื่อให้เช็คคนเข้าออกได้
     ],
 });
 
 const PREFIX = '!';
 const LOG_CHANNEL_ID = '1483551045711040605'; 
+const WELCOME_CHANNEL_ID = '1204742409347534900'; // ห้องสำหรับ LOG คนเข้า-ออก
 
 client.once('ready', () => {
     console.log(`Log in as: ${client.user.tag} ✅`);
 });
 
+// --- ระบบ LOG คนเข้าเซิร์ฟเวอร์ ---
+client.on('guildMemberAdd', async (member) => {
+    const channel = await client.channels.fetch(WELCOME_CHANNEL_ID);
+    if (!channel) return;
+
+    const welcomeEmbed = new EmbedBuilder()
+        .setColor('#2ECC71')
+        .setTitle('📥 สมาชิกใหม่เข้าร่วม!')
+        .setThumbnail(member.user.displayAvatarURL())
+        .setDescription(`ยินดีต้อนรับคุณ ${member} เข้าสู่เซิร์ฟเวอร์!\nขณะนี้เรามีสมาชิกทั้งหมด **${member.guild.memberCount}** คนแล้ว`)
+        .setTimestamp();
+
+    channel.send({ embeds: [welcomeEmbed] });
+});
+
+// --- ระบบ LOG คนออกจากเซิร์ฟเวอร์ ---
+client.on('guildMemberRemove', async (member) => {
+    const channel = await client.channels.fetch(WELCOME_CHANNEL_ID);
+    if (!channel) return;
+
+    const leaveEmbed = new EmbedBuilder()
+        .setColor('#E74C3C')
+        .setTitle('📤 มีคนจากเราไปแล้ว')
+        .setThumbnail(member.user.displayAvatarURL())
+        .setDescription(`คุณ **${member.user.username}** ได้ออกจากเซิร์ฟเวอร์ไปแล้ว\nเหลือสมาชิกทั้งหมด **${member.guild.memberCount}** คน`)
+        .setTimestamp();
+
+    channel.send({ embeds: [leaveEmbed] });
+});
+
+// --- ระบบเลเวล (เหมือนเดิม) ---
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
@@ -35,42 +68,28 @@ client.on('messageCreate', async (message) => {
 
     const addXp = Math.floor(Math.random() * 11) + 15;
     userData.xp += addXp;
-
     const nextLevelXP = userData.level * 100;
 
     if (userData.xp >= nextLevelXP) {
         userData.level++;
-        
         try {
-            // --- ดึงข้อมูลห้องแบบสดๆ (Fetch) ---
             const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
-            
             if (logChannel) {
-                // 1. ลองเปลี่ยนชื่อห้อง
                 const newName = `🏆┃level-${userData.level}`;
-                console.log(`[System] พยายามเปลี่ยนชื่อห้องเป็น: ${newName}`);
-                
                 await logChannel.setName(newName);
-                console.log(`[System] เปลี่ยนชื่อห้องสำเร็จ!`);
-
-                // 2. ส่งข้อความประกาศแบบ Embed
                 const levelEmbed = new EmbedBuilder()
                     .setColor('#00FF7F')
                     .setAuthor({ name: 'LEVEL UP! 🎊', iconURL: message.author.displayAvatarURL() })
                     .setDescription(`ยินดีด้วย <@${message.author.id}>! ตอนนี้เลเวลของคุณคือ **${userData.level}**`)
-                    .setFooter({ text: 'ระบบเลเวลอัตโนมัติ' })
                     .setTimestamp();
-
                 await logChannel.send({ embeds: [levelEmbed] });
             }
         } catch (err) {
-            console.error('❌ ไม่สามารถเปลี่ยนชื่อห้องได้!');
             console.error(`สาเหตุ: ${err.message}`);
         }
     }
     await userData.save();
 
-    // --- Commands ---
     if (!message.content.startsWith(PREFIX)) return;
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
