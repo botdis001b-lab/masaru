@@ -1,7 +1,7 @@
-const { Client, GatewayIntentBits, ActivityType, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActivityType } = require('discord.js');
 const mongoose = require('mongoose');
 
-// เชื่อมต่อ MongoDB
+// --- 1. การเชื่อมต่อฐานข้อมูล MongoDB ---
 mongoose.connect(process.env.MONGO_URL)
     .then(() => console.log('MongoDB Connected! 📦'))
     .catch(err => console.error('MongoDB Error:', err));
@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
+// --- 2. ตั้งค่าบอทและ Intents ---
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -23,23 +24,58 @@ const client = new Client({
     ],
 });
 
+// --- 3. ตั้งค่า ID ต่างๆ (ตรวจสอบให้ตรงกับดิสของคุณ) ---
 const PREFIX = '!';
-const LEVEL_LOG_ID = '1483551045711040605';
-const VOICE_LOG_ID = '1204742409347534900';
+const LEVEL_LOG_ID = '1483551045711040605'; // ห้องแจ้งเลเวลอัป
+const VOICE_LOG_ID = '1204742409347534900'; // ห้อง LOG เข้า-ออกห้องเสียง
+const CLOCK_CHANNEL_ID = '1483918700976410694'; // ห้องนาฬิกาเรียลไทม์
 
+// --- 4. ฟังก์ชันสำหรับนาฬิกา ASCII ---
+const asciiDigits = {
+    '0': ["  ███  ", " ██ █  ", "  ███  "], '1': ["   █   ", "   █   ", "   █   "],
+    '2': [" ███   ", "   █   ", " ███   "], '3': [" ███   ", "  ██   ", " ███   "],
+    '4': [" █ █   ", " ███   ", "   █   "], '5': [" ███   ", " ██    ", " ███   "],
+    '6': [" ███   ", " █     ", " ███   "], '7': [" ███   ", "   █   ", "   █   "],
+    '8': [" ███   ", " ███   ", " ███   "], '9': [" ███   ", " █ ██  ", "  ███  "],
+    ':': ["   ", " █ ", " █ "]
+};
+
+function getFullClockDisplay() {
+    const now = new Date();
+    const timeStr = now.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    const dateStr = now.toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'long', year: 'numeric' });
+    
+    const chars = timeStr.split('');
+    let lines = ["", "", ""];
+    chars.forEach(char => {
+        const digit = asciiDigits[char] || ["   ", "   ", "   "];
+        for (let i = 0; i < 3; i++) lines[i] += digit[i];
+    });
+
+    return `\`\`\`fix\n${lines.join('\n')}\n\n📅 วันที่: ${dateStr}\n⏱️ อัปเดตล่าสุด: ${timeStr} น.\n\`\`\``;
+}
+
+let clockMsg = null;
+
+// --- 5. เมื่อบอทออนไลน์ ---
 client.once('ready', async () => {
     console.log(`Log in as: ${client.user.tag} ✅`);
-    try {
-        const testChannel = await client.channels.fetch(VOICE_LOG_ID);
-        if (testChannel) {
-            await testChannel.send('```diff\n+ [System] ระบบ Voice LOG เริ่มทำงานเรียบร้อยแล้ว\n```');
-        }
-    } catch (err) {
-        console.error(`[Error] ${err.message}`);
+    
+    // เริ่มระบบนาฬิกา
+    const channel = await client.channels.fetch(CLOCK_CHANNEL_ID);
+    if (channel) {
+        clockMsg = await channel.send(getFullClockDisplay());
+        setInterval(async () => {
+            try {
+                if (clockMsg) await clockMsg.edit(getFullClockDisplay());
+            } catch (err) {
+                clockMsg = await channel.send(getFullClockDisplay());
+            }
+        }, 10000); // อัปเดตทุก 10 วินาที (ปลอดภัยต่อ Rate Limit)
     }
 });
 
-// --- ระบบ LOG การเข้า-ออกห้องเสียง (รูปแบบ Code Block) ---
+// --- 6. ระบบ LOG เข้า-ออกห้องเสียง (Code Block) ---
 client.on('voiceStateUpdate', async (oldState, newState) => {
     try {
         const logChannel = await client.channels.fetch(VOICE_LOG_ID);
@@ -48,76 +84,34 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         const member = newState.member || oldState.member;
         if (member.user.bot) return;
 
-        // 1. กรณีเข้าห้องเสียง
+        // เข้าห้อง
         if (!oldState.channelId && newState.channelId) {
             const embed = new EmbedBuilder()
                 .setColor('#2ECC71')
                 .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
-                .setDescription(`\`\`\`diff\n+ [เข้าห้อง]: ${newState.channel.name}\n- โดย: ${member.user.tag}\n\`\`\``)
+                .setDescription(`\`\`\`diff\n+ [เข้าห้อง]: ${newState.channel.name}\n- ยูสเซอร์: ${member.user.tag}\n\`\`\``)
                 .setTimestamp();
             await logChannel.send({ embeds: [embed] });
         }
-
-        // 2. กรณีออกจากห้องเสียง
+        // ออกห้อง
         else if (oldState.channelId && !newState.channelId) {
             const embed = new EmbedBuilder()
                 .setColor('#E74C3C')
                 .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
-                .setDescription(`\`\`\`diff\n- [ออกห้อง]: ${oldState.channel.name}\n- โดย: ${member.user.tag}\n\`\`\``)
+                .setDescription(`\`\`\`diff\n- [ออกห้อง]: ${oldState.channel.name}\n- ยูสเซอร์: ${member.user.tag}\n\`\`\``)
                 .setTimestamp();
             await logChannel.send({ embeds: [embed] });
         }
-
-        // 3. กรณีย้ายห้องเสียง
+        // ย้ายห้อง
         else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
             const embed = new EmbedBuilder()
                 .setColor('#F1C40F')
                 .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
-                .setDescription(`\`\`\`yaml\nย้ายห้อง: "${oldState.channel.name}"\nไปที่: "${newState.channel.name}"\nยูสเซอร์: ${member.user.tag}\n\`\`\``)
+                .setDescription(`\`\`\`yaml\n[ย้ายห้อง]\nจาก: ${oldState.channel.name}\nไปที่: ${newState.channel.name}\nโดย: ${member.user.tag}\n\`\`\``)
                 .setTimestamp();
             await logChannel.send({ embeds: [embed] });
         }
-    } catch (err) {
-        console.error('Voice Log Error:', err);
-    }
+    } catch (err) { console.error('Voice Log Error:', err); }
 });
 
-// --- ระบบเลเวล ---
-client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.guild) return;
-
-    try {
-        let userData = await User.findOne({ userId: message.author.id });
-        if (!userData) userData = new User({ userId: message.author.id });
-
-        const addXp = Math.floor(Math.random() * 11) + 15;
-        userData.xp += addXp;
-        const nextLevelXP = userData.level * 100;
-
-        if (userData.xp >= nextLevelXP) {
-            userData.level++;
-            const logChannel = await client.channels.fetch(LEVEL_LOG_ID);
-            if (logChannel) {
-                await logChannel.setName(`🏆┃level-${userData.level}`).catch(() => {});
-                const levelEmbed = new EmbedBuilder()
-                    .setColor('#00FF7F')
-                    .setDescription(`\`\`\`fix\n🎊 เลเวลอัป: ${userData.level}\nยูสเซอร์: ${message.author.username}\n\`\`\``)
-                    .setTimestamp();
-                await logChannel.send({ embeds: [levelEmbed] });
-            }
-        }
-        await userData.save();
-    } catch (err) {
-        console.error('Level System Error:', err);
-    }
-
-    if (!message.content.startsWith(PREFIX)) return;
-    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
-
-    if (command === 'level' || command === 'lv') {
-        message.reply(`📊 **${message.author.username}** | Level: **${userData.level}** | XP: **${userData.xp}/${userData.level * 100}**`);
-    }
-});
-
-client.login(process.env.TOKEN);
+// --- 7. ระบบเลเวล และ คำสั่ง ---
