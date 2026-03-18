@@ -1,7 +1,11 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const mongoose = require('mongoose');
+const keepAlive = require('./server.js'); // เรียกใช้หน้าเว็บ
 
-// --- 1. เชื่อมต่อฐานข้อมูล ---
+// --- 1. เริ่มระบบหน้าเว็บ ---
+keepAlive();
+
+// --- 2. เชื่อมต่อ MongoDB ---
 mongoose.connect(process.env.MONGO_URL)
     .then(() => console.log('MongoDB Connected! 📦'))
     .catch(err => console.error('MongoDB Error:', err));
@@ -23,23 +27,18 @@ const client = new Client({
     ],
 });
 
-// --- 2. ตั้งค่า ID ห้อง ---
-const LEVEL_LOG_ID = '1483551045711040605'; 
+// --- 3. ตั้งค่า ID ต่างๆ ---
 const VOICE_LOG_ID = '1204742409347534900'; 
 const CLOCK_CHANNEL_ID = '1483918700976410694'; 
+const LEVEL_LOG_ID = '1483551045711040605';
 
-// --- 3. ฟอนต์ Digital ASCII แบบใหม่ (Line Style) ---
+// ฟอนต์ Digital ASCII (แบบเส้นโปร่ง อ่านง่าย)
 const asciiDigits = {
-    '0': [" ╔══╗ ", " ║  ║ ", " ╚══╝ "],
-    '1': ["  ║   ", "  ║   ", "  ║   "],
-    '2': [" ═══╗ ", " ╔══╝ ", " ╚═══ "],
-    '3': [" ═══╗ ", "  ══╣ ", " ═══╝ "],
-    '4': [" ║  ║ ", " ╚══╣ ", "    ║ "],
-    '5': [" ╔═══ ", " ╚══╗ ", " ═══╝ "],
-    '6': [" ╔═══ ", " ╠══╗ ", " ╚══╝ "],
-    '7': [" ═══╗ ", "    ║ ", "    ║ "],
-    '8': [" ╔══╗ ", " ╠══╣ ", " ╚══╝ "],
-    '9': [" ╔══╗ ", " ╚══╣ ", " ═══╝ "],
+    '0': [" ╔══╗ ", " ║  ║ ", " ╚══╝ "], '1': ["  ║   ", "  ║   ", "  ║   "],
+    '2': [" ═══╗ ", " ╔══╝ ", " ╚═══ "], '3': [" ═══╗ ", "  ══╣ ", " ═══╝ "],
+    '4': [" ║  ║ ", " ╚══╣ ", "    ║ "], '5': [" ╔═══ ", " ╚══╗ ", " ═══╝ "],
+    '6': [" ╔═══ ", " ╠══╗ ", " ╚══╝ "], '7': [" ═══╗ ", "    ║ ", "    ║ "],
+    '8': [" ╔══╗ ", " ╠══╣ ", " ╚══╝ "], '9': [" ╔══╗ ", " ╚══╣ ", " ═══╝ "],
     ':': ["   ", " ═ ", " ═ "]
 };
 
@@ -47,33 +46,45 @@ function getNewDigitalClock() {
     const now = new Date();
     const timeStr = now.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     const dateStr = now.toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'long', year: 'numeric' });
-    
     const chars = timeStr.split('');
     let lines = ["", "", ""];
     chars.forEach(char => {
         const digit = asciiDigits[char] || ["   ", "   ", "   "];
         for (let i = 0; i < 3; i++) lines[i] += digit[i];
     });
-
     return `### 🕒 ระบบนาฬิกาดิจิทัล (Real-time)\n\`\`\`fix\n${lines.join('\n')}\n\`\`\`\n> 📅 **วันที่:** ${dateStr}\n> ⏱️ **อัปเดตล่าสุด:** ${timeStr} น.`;
 }
 
 let clockMsg = null;
 
-// --- 4. เริ่มการทำงาน ---
+// --- 4. การทำงานเมื่อบอท Online ---
 client.once('ready', async () => {
     console.log(`Log in as: ${client.user.tag} ✅`);
     
     const channel = await client.channels.fetch(CLOCK_CHANNEL_ID);
     if (channel) {
-        clockMsg = await channel.send(getNewDigitalClock());
+        // --- ส่วนที่แก้ไข: ป้องกันการส่งข้อความใหม่ซ้ำๆ ---
+        const messages = await channel.messages.fetch({ limit: 10 });
+        // หาข้อความล่าสุดที่บอทเป็นคนส่ง
+        clockMsg = messages.find(m => m.author.id === client.user.id);
+
+        if (!clockMsg) {
+            // ถ้าไม่เจอข้อความเก่าเลย ถึงจะส่งใหม่
+            clockMsg = await channel.send(getNewDigitalClock());
+        } else {
+            // ถ้าเจออันเก่า ให้แก้ไขอันนั้นทันที
+            await clockMsg.edit(getNewDigitalClock());
+        }
+
+        // อัปเดตนาฬิกาทุก 10 วินาที
         setInterval(async () => {
             try {
                 if (clockMsg) await clockMsg.edit(getNewDigitalClock());
             } catch (err) {
+                // ถ้าเผลอไปลบอันเก่า ให้สร้างใหม่
                 clockMsg = await channel.send(getNewDigitalClock());
             }
-        }, 10000); // อัปเดตทุก 10 วินาที
+        }, 10000); 
     }
 });
 
@@ -101,10 +112,8 @@ client.on('messageCreate', async (message) => {
     try {
         let userData = await User.findOne({ userId: message.author.id });
         if (!userData) userData = new User({ userId: message.author.id });
-
         userData.xp += Math.floor(Math.random() * 11) + 15;
         const nextLevelXP = userData.level * 100;
-
         if (userData.xp >= nextLevelXP) {
             userData.level++;
             const logChannel = await client.channels.fetch(LEVEL_LOG_ID);
@@ -115,6 +124,10 @@ client.on('messageCreate', async (message) => {
         }
         await userData.save();
     } catch (err) { console.error(err); }
+    if (message.content === '!level') {
+        const data = await User.findOne({ userId: message.author.id });
+        message.reply(`📊 Level: **${data ? data.level : 1}** | XP: **${data ? data.xp : 0}/${(data ? data.level : 1) * 100}**`);
+    }
 });
 
 client.login(process.env.TOKEN);
