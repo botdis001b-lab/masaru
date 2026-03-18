@@ -6,7 +6,6 @@ const DiscordStrategy = require('passport-discord').Strategy;
 const app = express();
 const port = process.env.PORT || 3000;
 
-// รับ User model มาจาก index.js เพื่อป้องกัน Schema Error
 module.exports = function(User) {
     passport.serializeUser((user, done) => done(null, user));
     passport.deserializeUser((obj, done) => done(null, obj));
@@ -21,7 +20,7 @@ module.exports = function(User) {
     }));
 
     app.use(session({
-        secret: 'masaru-secret-v3',
+        secret: 'masaru-secret-key-v3',
         resave: false,
         saveUninitialized: false
     }));
@@ -29,11 +28,11 @@ module.exports = function(User) {
     app.use(passport.initialize());
     app.use(passport.session());
 
-    // --- หน้า Dashboard ---
+    // หน้าแรก
     app.get('/', (req, res) => {
         res.send(`<body style="background:#23272a;color:white;text-align:center;font-family:sans-serif;padding-top:100px;">
-            <h1>🚀 Masaru Bot Dashboard</h1>
-            <a href="/login" style="background:#5865F2;color:white;padding:15px 30px;text-decoration:none;border-radius:5px;">Login with Discord</a>
+            <h1 style="font-size:40px;">🚀 Masaru Bot Dashboard</h1>
+            <a href="/login" style="background:#5865F2;color:white;padding:15px 40px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:20px;">Login with Discord</a>
         </body>`);
     });
 
@@ -42,18 +41,26 @@ module.exports = function(User) {
         res.redirect('/profile');
     });
 
+    // หน้าโปรไฟล์ (โชว์เวล)
     app.get('/profile', async (req, res) => {
         if (!req.isAuthenticated()) return res.redirect('/');
-        const data = await User.findOne({ userId: req.user.id });
+        const userData = await User.findOne({ userId: req.user.id });
+        const avatarUrl = req.user.avatar ? `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png` : 'https://cdn.discordapp.com/embed/avatars/0.png';
+        
         res.send(`<body style="background:#23272a;color:white;text-align:center;font-family:sans-serif;padding:50px;">
-            <img src="https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png" style="border-radius:50%;width:100px;">
-            <h2>ยินดีต้อนรับ ${req.user.username}</h2>
-            <p>Level: ${data ? data.level : 1} | XP: ${data ? data.xp : 0}</p>
-            <a href="/logout" style="color:red;">Logout</a>
+            <div style="background:#2c2f33;padding:40px;border-radius:20px;display:inline-block;border-top:5px solid #5865F2;">
+                <img src="${avatarUrl}" style="border-radius:50%;width:120px;border:4px solid #5865F2;">
+                <h2>ยินดีต้อนรับคุณ ${req.user.username}</h2>
+                <hr style="border:0;border-top:1px solid #444;">
+                <div style="display:flex;justify-content:space-around;gap:20px;margin-top:20px;">
+                    <div><p style="color:#b9bbbe;margin:0;">Level</p><h3 style="color:#f1c40f;font-size:30px;margin:5px 0;">${userData ? userData.level : 1}</h3></div>
+                    <div><p style="color:#b9bbbe;margin:0;">XP</p><h3 style="color:#f1c40f;font-size:30px;margin:5px 0;">${userData ? userData.xp : 0}</h3></div>
+                </div>
+                <br><a href="/logout" style="color:#ed4245;">ออกจากระบบ</a>
+            </div>
         </body>`);
     });
 
     app.get('/logout', (req, res) => { req.logout(() => res.redirect('/')); });
-
     app.listen(port, () => console.log(`🌐 Web Dashboard Online on Port ${port}`));
 };
