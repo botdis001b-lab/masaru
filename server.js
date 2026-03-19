@@ -7,10 +7,9 @@ const mongoose = require('mongoose');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// *** สำคัญมากสำหรับ Railway: ต้องตั้ง Trust Proxy เพื่อให้ Session ทำงานบน HTTPS ได้ ***
-app.set('trust proxy', 1);
+// --- จุดสำคัญ: ต้องตั้งค่านี้เพื่อให้ Session ทำงานบน Railway ได้ ---
+app.set('trust proxy', 1); 
 
-// เชื่อมต่อ MongoDB
 mongoose.connect(process.env.MONGO_URL).then(() => console.log('Web DB Connected! 📦'));
 
 const User = mongoose.models.User || mongoose.model('User', new mongoose.Schema({
@@ -36,36 +35,31 @@ app.use(session({
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: true, // ตั้งเป็น true เพราะ Railway ใช้ HTTPS
-        maxAge: 60000 * 60 * 24 // อยู่ได้ 24 ชม.
+        secure: true, // ต้องเป็น true เมื่อรันบน HTTPS (Railway)
+        maxAge: 60000 * 60 * 24 
     }
 }));
 
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Route ต่างๆ (เหมือนเดิม)
 app.get('/', (req, res) => {
     res.send(`<body style="background:#23272a;color:white;text-align:center;font-family:sans-serif;padding-top:100px;">
         <h1 style="font-size:40px;">🚀 Masaru Dashboard</h1>
-        <p>ระบบแยกส่วน (Standalone Mode)</p><br>
         <a href="/login" style="background:#5865F2;color:white;padding:15px 40px;text-decoration:none;border-radius:8px;font-weight:bold;">Login with Discord</a>
     </body>`);
 });
 
 app.get('/login', passport.authenticate('discord'));
 
-app.get('/auth/discord/callback', passport.authenticate('discord', { 
-    failureRedirect: '/',
-    failureFlash: false 
-}), (req, res) => {
+app.get('/auth/discord/callback', passport.authenticate('discord', { failureRedirect: '/' }), (req, res) => {
     res.redirect('/profile');
 });
 
 app.get('/profile', async (req, res) => {
+    if (!req.isAuthenticated()) return res.redirect('/');
     try {
-        if (!req.isAuthenticated()) return res.redirect('/');
-        
-        // ดึงข้อมูล User พร้อมดัก Error
         const userData = await User.findOne({ userId: req.user.id });
         const avatarUrl = req.user.avatar ? `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png` : 'https://cdn.discordapp.com/embed/avatars/0.png';
         
@@ -79,17 +73,8 @@ app.get('/profile', async (req, res) => {
                 <br><a href="/logout" style="color:#ed4245;">Logout</a>
             </div>
         </body>`);
-    } catch (err) {
-        console.error("Profile Error:", err);
-        res.status(500).send("เกิดข้อผิดพลาดในการดึงข้อมูล โปรดลองใหม่อีกครั้ง");
-    }
+    } catch (err) { res.status(500).send("DB Error"); }
 });
 
-app.get('/logout', (req, res) => { 
-    req.logout((err) => {
-        if (err) return next(err);
-        res.redirect('/'); 
-    });
-});
-
+app.get('/logout', (req, res) => { req.logout(() => res.redirect('/')); });
 app.listen(port, () => console.log(`🌐 Web Dashboard Online on Port ${port}`));
