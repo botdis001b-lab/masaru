@@ -32,7 +32,7 @@ passport.use(new DiscordStrategy({
 }, (accessToken, refreshToken, profile, done) => done(null, profile)));
 
 app.use(session({
-    secret: 'masaru-v5-secret',
+    secret: 'masaru-vfinal',
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({ mongoUrl: process.env.MONGO_URL }),
@@ -42,7 +42,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// middleware ส่งค่า isAdmin ไปทุกหน้า
+// เช็กสถานะ Admin สำหรับทุกหน้า
 app.use((req, res, next) => {
     res.locals.isAdmin = req.isAuthenticated() && req.user.id === ADMIN_ID;
     next();
@@ -63,18 +63,20 @@ app.get('/youtube', async (req, res) => {
     if (!req.isAuthenticated()) return res.redirect('/');
     let videos = [];
     try {
+        // จำกัดแค่ 3 คลิปตามสั่งครับพี่
         const ytUrl = `https://www.googleapis.com/youtube/v3/search?key=${process.env.YOUTUBE_API_KEY}&channelId=${process.env.YOUTUBE_CHANNEL_ID}&part=snippet,id&order=date&maxResults=3&type=video`;
         const ytRes = await axios.get(ytUrl);
         videos = ytRes.data.items;
-    } catch (e) { console.log("YT Error"); }
+    } catch (e) { console.log("YT API Error"); }
     const avatarUrl = `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`;
     res.render('youtube', { user: req.user, avatarUrl, videos });
 });
 
 app.get('/admin', async (req, res) => {
-    if (!res.locals.isAdmin) return res.status(403).send("Admin Only");
+    if (!res.locals.isAdmin) return res.status(403).send("สิทธิ์ไม่เพียงพอ");
     const totalUsers = await User.countDocuments();
     const avatarUrl = `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`;
+    // ตรวจสอบให้แน่ใจว่าพี่มีไฟล์ views/admin.ejs อยู่จริงนะครับ
     res.render('admin', { user: req.user, avatarUrl, totalUsers });
 });
 
