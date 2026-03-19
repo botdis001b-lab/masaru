@@ -3,90 +3,52 @@
 <head>
     <title>Masaru Dashboard</title>
     <style>
-        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #23272a; color: white; display: flex; overflow: hidden; }
-        
-        /* Sidebar */
-        .sidebar { width: 260px; background: #2c2f33; height: 100vh; border-right: 1px solid #444; display: flex; flex-direction: column; }
-        .sidebar-header { padding: 30px 20px; text-align: center; border-bottom: 1px solid #444; font-weight: bold; color: #5865F2; font-size: 1.2rem; }
-        .nav-item { padding: 15px 25px; display: block; color: #b9bbbe; text-decoration: none; transition: 0.2s; border-left: 3px solid transparent; }
-        .nav-item:hover { background: #3c3f44; color: white; border-left: 3px solid #5865F2; }
-        .nav-item.active { background: #36393f; color: white; border-left: 3px solid #5865F2; }
-
-        /* Main Content Area */
-        .wrapper { flex: 1; display: flex; flex-direction: column; height: 100vh; }
-        
-        /* Top Navbar */
-        .navbar { height: 70px; background: #2c2f33; display: flex; align-items: center; justify-content: flex-end; padding: 0 40px; border-bottom: 1px solid #444; }
-        .user-trigger { display: flex; align-items: center; cursor: pointer; padding: 5px 15px; border-radius: 8px; transition: 0.2s; position: relative; }
-        .user-trigger:hover { background: #3c3f44; }
-        .mini-avatar { width: 35px; height: 35px; border-radius: 50%; margin-right: 12px; border: 2px solid #5865F2; }
-        .username-text { font-weight: 500; font-size: 14px; }
-
-        /* Pop-up Profile Menu (ส่วนที่พี่ต้องการให้เก็บไว้) */
-        .profile-popover { 
-            display: none; position: absolute; top: 60px; right: 0; 
-            background: #18191c; width: 280px; border-radius: 12px; 
-            box-shadow: 0 8px 24px rgba(0,0,0,0.5); padding: 20px; z-index: 100;
-            border: 1px solid #444;
-        }
-        .user-trigger:hover .profile-popover { display: block; }
-        .popover-header { text-align: center; border-bottom: 1px solid #333; padding-bottom: 15px; margin-bottom: 15px; }
-        .popover-avatar { width: 70px; height: 70px; border-radius: 50%; border: 3px solid #5865F2; margin-bottom: 10px; }
-        
-        .stat-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 13px; }
-        .stat-label { color: #b9bbbe; }
-        .stat-value { color: #5865F2; font-weight: bold; }
-
-        .main-view { padding: 40px; flex: 1; overflow-y: auto; }
-        .welcome-msg { font-size: 24px; margin-bottom: 10px; }
+        body { margin: 0; font-family: sans-serif; background: #23272a; color: white; display: flex; }
+        .sidebar { width: 250px; background: #2c2f33; height: 100vh; border-right: 1px solid #444; }
+        .nav-item { padding: 15px 25px; display: block; color: #b9bbbe; text-decoration: none; }
+        .nav-item:hover { background: #3c3f44; color: white; }
+        .main { flex: 1; padding: 40px; }
+        .yt-card { background: #18191c; border-radius: 12px; overflow: hidden; max-width: 450px; border: 1px solid #444; margin-top: 20px; }
+        .yt-thumb { width: 100%; display: block; }
+        .yt-info { padding: 15px; }
+        .user-nav { position: absolute; top: 20px; right: 40px; display: flex; align-items: center; cursor: pointer; }
+        .mini-avatar { width: 35px; border-radius: 50%; margin-right: 10px; border: 2px solid #5865f2; }
     </style>
 </head>
 <body>
-
     <div class="sidebar">
-        <div class="sidebar-header">MASARU BOT</div>
-        <a href="/profile" class="nav-item active">🏠 หน้าหลัก</a>
-        <a href="#" class="nav-item">🏆 อันดับเลเวล</a>
-        <% if (isAdmin) { %>
-            <a href="/admin/manage" class="nav-item" style="color: #f1c40f;">🛠️ ตั้งค่าบอท</a>
-        <% } %>
-        <div style="margin-top: auto;">
-            <a href="/logout" class="nav-item" style="color: #ed4245; border: none;">🚪 ออกจากระบบ</a>
-        </div>
+        <div style="padding: 30px; font-weight: bold; color: #5865f2; font-size: 20px;">MASARU</div>
+        <a href="/profile" class="nav-item">🏠 หน้าหลัก</a>
+        <% if (isAdmin) { %><a href="#" class="nav-item" style="color: #f1c40f;">🛠️ ตั้งค่าบอท</a><% } %>
+        <a href="/logout" class="nav-item" style="color: #ed4245;">🚪 ออกจากระบบ</a>
     </div>
 
-    <div class="wrapper">
-        <div class="navbar">
-            <div class="user-trigger">
-                <img src="<%= avatarUrl %>" class="mini-avatar">
-                <span class="username-text"><%= user.username %></span>
-                
-                <div class="profile-popover">
-                    <div class="popover-header">
-                        <img src="<%= avatarUrl %>" class="popover-avatar">
-                        <div style="font-weight: bold;"><%= user.username %></div>
-                        <div style="font-size: 11px; color: #72767d;">ID: <%= user.id %></div>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Level</span>
-                        <span class="stat-value" style="color: #f1c40f;"><%= userData.level %></span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Total XP</span>
-                        <span class="stat-value"><%= userData.xp %></span>
-                    </div>
-                    <hr style="border: 0; border-top: 1px solid #333; margin: 15px 0;">
-                    <a href="/logout" style="color: #ed4245; text-decoration: none; font-size: 13px; display: block; text-align: center;">ออกจากระบบ</a>
+    <div class="main">
+        <div class="user-nav">
+            <img src="<%= avatarUrl %>" class="mini-avatar">
+            <span><%= user.username %> (Lv.<%= userData.level %>)</span>
+        </div>
+
+        <h2>ยินดีต้อนรับครับ, <%= user.username %> 👋</h2>
+        
+        <div style="margin-top: 40px;">
+            <h3 style="color: #ff0000;">🔴 วิดีโอล่าสุดจากช่อง Masaru</h3>
+            <% if (latestVideo) { %>
+                <div class="yt-card">
+                    <a href="https://www.youtube.com/watch?v=<%= latestVideo.id.videoId %>" target="_blank" style="text-decoration: none; color: white;">
+                        <img src="<%= latestVideo.snippet.thumbnails.high.url %>" class="yt-thumb">
+                        <div class="yt-info">
+                            <div style="font-weight: bold;"><%= latestVideo.snippet.title %></div>
+                            <div style="font-size: 12px; color: #72767d; margin-top: 5px;">
+                                อัปโหลดเมื่อ: <%= new Date(latestVideo.snippet.publishedAt).toLocaleDateString('th-TH') %>
+                            </div>
+                        </div>
+                    </a>
                 </div>
-            </div>
+            <% } else { %>
+                <p style="color: #72767d;">กำลังโหลดข้อมูลจาก YouTube...</p>
+            <% } %>
         </div>
-
-        <div class="main-view">
-            <div class="welcome-msg">สวัสดีครับ, <%= user.username %> 👋</div>
-            <p style="color: #b9bbbe;">เลือกเมนูทางด้านซ้ายเพื่อจัดการระบบบอท Masaru</p>
-            
-            </div>
     </div>
-
 </body>
 </html>
