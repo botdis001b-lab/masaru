@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Masaru YouTube</title>
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #23272a; color: white; display: flex; }
+        .sidebar { width: 250px; background: #2c2f33; height: 100vh; border-right: 1px solid #444; position: fixed; }
+        .nav-item { padding: 15px 25px; display: block; color: #b9bbbe; text-decoration: none; }
+        .nav-item:hover { background: #3c3f44; color: white; }
+        .main { flex: 1; margin-left: 250px; padding: 40px; }
+        .yt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; margin-top: 30px; }
+        .yt-card { background: #18191c; border-radius: 15px; overflow: hidden; border: 1px solid #444; transition: 0.3s; }
+        .yt-card:hover { transform: translateY(-8px); border-color: #ff0000; box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
+        .yt-thumb { width: 100%; display: block; }
+        .yt-info { padding: 15px; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div style="padding: 30px; font-weight: bold; color: #5865f2; font-size: 22px;">MASARU BOT</div>
+        <a href="/profile" class="nav-item">🏠 หน้าหลัก</a>
+        <a href="/youtube" class="nav-item" style="background: #3c3f44; color: white;">🎥 วิดีโอ YouTube</a>
+        <% if (isAdmin) { %><a href="#" class="nav-item" style="color: #f1c40f;">🛠️ ตั้งค่าบอท</a><% } %>
+        <a href="/logout" class="nav-item" style="color: #ed4245;">🚪 ออกจากระบบ</a>
+    </div>
+
+    <div class="main">
+        <h1 style="color: #ff0000; display: flex; align-items: center;">
+            <span style="background: white; color: red; padding: 2px 8px; border-radius: 5px; margin-right: 15px;">LIVE</span>
+            วิดีโอล่าสุดจาก Masaru
+        </h1>
+        
+        <div class="yt-grid">
+            <% if (videos && videos.length > 0) { %>
+                <% videos.forEach(video => { %>
+                    <div class="yt-card">
+                        <a href="https://www.youtube.com/watch?v=<%= video.id.videoId %>" target="_blank" style="text-decoration: none; color: white;">
+                            <img src="<%= video.snippet.thumbnails.high.url %>" class="yt-thumb">
+                            <div class="yt-info">
+                                <div style="font-weight: bold; margin-bottom: 8px; line-height: 1.4;"><%= video.snippet.title %></div>
+                                <div style="font-size: 12px; color: #72767d;">อัปโหลดเมื่อ: <%= new Date(video.snippet.publishedAt).toLocaleDateString('th-TH') %></div>
+                            </div>
+                        </a>
+                    </div>
+                <% }) %>
+            <% } else { %>
+                <p style="color: #72767d;">กำลังดึงข้อมูลจาก YouTube หรือตรวจสอบ API Key ของคุณ...</p>
+            <% } %>
+        </div>
+    </div>
+</body>
+</html>

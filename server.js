@@ -34,7 +34,7 @@ passport.use(new DiscordStrategy({
 }, (accessToken, refreshToken, profile, done) => done(null, profile)));
 
 app.use(session({
-    secret: 'masaru-v4-prod',
+    secret: 'masaru-v4-final',
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({ mongoUrl: process.env.MONGO_URL }),
@@ -44,30 +44,38 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// --- ROUTES ---
 app.get('/', (req, res) => req.isAuthenticated() ? res.redirect('/profile') : res.render('login'));
 app.get('/login', passport.authenticate('discord'));
 app.get('/auth/discord/callback', passport.authenticate('discord', { failureRedirect: '/' }), (req, res) => res.redirect('/profile'));
 
+// หน้าโปรไฟล์หลัก (โชว์เลเวล)
 app.get('/profile', async (req, res) => {
     if (!req.isAuthenticated()) return res.redirect('/');
     try {
         let userData = await User.findOne({ userId: req.user.id });
         if (!userData) userData = await User.create({ userId: req.user.id });
+        const avatarUrl = req.user.avatar ? `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png` : 'https://cdn.discordapp.com/embed/avatars/0.png';
+        res.render('profile', { user: req.user, userData, avatarUrl, isAdmin: req.user.id === ADMIN_ID });
+    } catch (err) { res.status(500).send("Error"); }
+});
 
-        let latestVideo = null;
+// หน้า YouTube แยกต่างหาก
+app.get('/youtube', async (req, res) => {
+    if (!req.isAuthenticated()) return res.redirect('/');
+    try {
+        let videos = [];
         if (process.env.YOUTUBE_API_KEY && process.env.YOUTUBE_CHANNEL_ID) {
             try {
-                const ytUrl = `https://www.googleapis.com/youtube/v3/search?key=${process.env.YOUTUBE_API_KEY}&channelId=${process.env.YOUTUBE_CHANNEL_ID}&part=snippet,id&order=date&maxResults=1&type=video`;
+                const ytUrl = `https://www.googleapis.com/youtube/v3/search?key=${process.env.YOUTUBE_API_KEY}&channelId=${process.env.YOUTUBE_CHANNEL_ID}&part=snippet,id&order=date&maxResults=6&type=video`;
                 const ytRes = await axios.get(ytUrl);
-                if (ytRes.data.items.length > 0) latestVideo = ytRes.data.items[0];
+                videos = ytRes.data.items;
             } catch (e) { console.error("YT API Error"); }
         }
-
         const avatarUrl = req.user.avatar ? `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png` : 'https://cdn.discordapp.com/embed/avatars/0.png';
-        res.render('profile', { user: req.user, userData, avatarUrl, latestVideo, isAdmin: req.user.id === ADMIN_ID });
+        res.render('youtube', { user: req.user, avatarUrl, videos, isAdmin: req.user.id === ADMIN_ID });
     } catch (err) { res.status(500).send("Error"); }
 });
 
 app.get('/logout', (req, res) => req.logout(() => res.redirect('/')));
-
 app.listen(port, () => console.log(`🌐 Server active on ${port}`));

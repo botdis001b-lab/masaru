@@ -1,53 +1,45 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Masaru Dashboard</title>
+    <title>Masaru Profile</title>
     <style>
         body { margin: 0; font-family: sans-serif; background: #23272a; color: white; display: flex; }
-        .sidebar { width: 250px; background: #2c2f33; height: 100vh; border-right: 1px solid #444; }
-        .nav-item { padding: 15px 25px; display: block; color: #b9bbbe; text-decoration: none; }
+        .sidebar { width: 250px; background: #2c2f33; height: 100vh; border-right: 1px solid #444; position: fixed; }
+        .nav-item { padding: 15px 25px; display: block; color: #b9bbbe; text-decoration: none; transition: 0.2s; }
         .nav-item:hover { background: #3c3f44; color: white; }
-        .main { flex: 1; padding: 40px; }
-        .yt-card { background: #18191c; border-radius: 12px; overflow: hidden; max-width: 450px; border: 1px solid #444; margin-top: 20px; }
-        .yt-thumb { width: 100%; display: block; }
-        .yt-info { padding: 15px; }
-        .user-nav { position: absolute; top: 20px; right: 40px; display: flex; align-items: center; cursor: pointer; }
-        .mini-avatar { width: 35px; border-radius: 50%; margin-right: 10px; border: 2px solid #5865f2; }
+        .main { flex: 1; margin-left: 250px; padding: 60px; display: flex; justify-content: center; align-items: center; min-height: 80vh; }
+        .profile-card { background: #2f3136; padding: 40px; border-radius: 20px; width: 100%; max-width: 600px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid #444; }
+        .avatar { width: 150px; border-radius: 50%; border: 5px solid #5865f2; margin-bottom: 20px; }
+        .stats { display: flex; justify-content: space-around; margin-top: 30px; background: #202225; padding: 20px; border-radius: 15px; }
+        .stat-box div:first-child { color: #b9bbbe; font-size: 14px; margin-bottom: 5px; }
+        .stat-box div:last-child { font-size: 24px; font-weight: bold; color: #f1c40f; }
     </style>
 </head>
 <body>
     <div class="sidebar">
-        <div style="padding: 30px; font-weight: bold; color: #5865f2; font-size: 20px;">MASARU</div>
-        <a href="/profile" class="nav-item">🏠 หน้าหลัก</a>
+        <div style="padding: 30px; font-weight: bold; color: #5865f2; font-size: 22px;">MASARU BOT</div>
+        <a href="/profile" class="nav-item" style="background: #3c3f44; color: white;">🏠 หน้าหลัก</a>
+        <a href="/youtube" class="nav-item">🎥 วิดีโอ YouTube</a>
         <% if (isAdmin) { %><a href="#" class="nav-item" style="color: #f1c40f;">🛠️ ตั้งค่าบอท</a><% } %>
-        <a href="/logout" class="nav-item" style="color: #ed4245;">🚪 ออกจากระบบ</a>
+        <a href="/logout" class="nav-item" style="color: #ed4245; margin-top: 20px;">🚪 ออกจากระบบ</a>
     </div>
 
     <div class="main">
-        <div class="user-nav">
-            <img src="<%= avatarUrl %>" class="mini-avatar">
-            <span><%= user.username %> (Lv.<%= userData.level %>)</span>
-        </div>
-
-        <h2>ยินดีต้อนรับครับ, <%= user.username %> 👋</h2>
-        
-        <div style="margin-top: 40px;">
-            <h3 style="color: #ff0000;">🔴 วิดีโอล่าสุดจากช่อง Masaru</h3>
-            <% if (latestVideo) { %>
-                <div class="yt-card">
-                    <a href="https://www.youtube.com/watch?v=<%= latestVideo.id.videoId %>" target="_blank" style="text-decoration: none; color: white;">
-                        <img src="<%= latestVideo.snippet.thumbnails.high.url %>" class="yt-thumb">
-                        <div class="yt-info">
-                            <div style="font-weight: bold;"><%= latestVideo.snippet.title %></div>
-                            <div style="font-size: 12px; color: #72767d; margin-top: 5px;">
-                                อัปโหลดเมื่อ: <%= new Date(latestVideo.snippet.publishedAt).toLocaleDateString('th-TH') %>
-                            </div>
-                        </div>
-                    </a>
+        <div class="profile-card">
+            <img src="<%= avatarUrl %>" class="avatar">
+            <h1 style="margin: 0;"><%= user.username %></h1>
+            <p style="color: #72767d; margin: 10px 0;">ID: <%= user.id %></p>
+            
+            <div class="stats">
+                <div class="stat-box">
+                    <div>Level</div>
+                    <div><%= userData.level %></div>
                 </div>
-            <% } else { %>
-                <p style="color: #72767d;">กำลังโหลดข้อมูลจาก YouTube...</p>
-            <% } %>
+                <div class="stat-box">
+                    <div>Total XP</div>
+                    <div style="color: #5865f2;"><%= userData.xp %></div>
+                </div>
+            </div>
         </div>
     </div>
 </body>
