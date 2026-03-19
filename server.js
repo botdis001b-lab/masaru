@@ -1,77 +1,73 @@
-const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
+const express = require('express');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
+const passport = require('passport');
+const DiscordStrategy = require('passport-discord').Strategy;
 const mongoose = require('mongoose');
+const path = require('path');
+const axios = require('axios');
 
-mongoose.connect(process.env.MONGO_URL).then(() => console.log('Bot DB Connected! ✅'));
+const app = express();
+const port = process.env.PORT || 8080;
+const ADMIN_ID = '550122613087666177';
 
-const User = mongoose.model('User', new mongoose.Schema({
-    userId: { type: String, required: true, unique: true },
-    xp: { type: Number, default: 0 },
-    level: { type: Number, default: 1 }
-}));
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+app.set('trust proxy', 1);
 
-const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildVoiceStates]
-});
-
-const CLOCK_CHANNEL_ID = '1483918700976410694';
-const LOG_CHANNEL_ID = '1204742409347534900';
-
-// ระบบนาฬิกา (ยุบรวมบรรทัดเพื่อความสะอาด)
-const asciiDigits = { '0': ["  ████  ", " ██  ██ ", " ██  ██ ", " ██  ██ ", "  ████  "], '1': ["   ██   ", "  ███   ", "   ██   ", "   ██   ", "  ████  "], '2': [" █████  ", "     ██ ", "  █████ ", " ██     ", " ██████ "], '3': [" █████  ", "     ██ ", "  █████ ", "     ██ ", " █████  "], '4': [" ██  ██ ", " ██  ██ ", " ██████ ", "     ██ ", "     ██ "], '5': [" ██████ ", " ██     ", " █████  ", "     ██ ", " █████  "], '6': ["  ████  ", " ██     ", " █████  ", " ██  ██ ", "  ████  "], '7': [" ██████ ", "     ██ ", "    ██  ", "   ██   ", "   ██   "], '8': ["  ████  ", " ██  ██ ", "  ████  ", " ██  ██ ", "  ████  "], '9': ["  ████  ", " ██  ██ ", "  █████ ", "     ██ ", "  ████  "], ':': ["        ", "   ██   ", "        ", "   ██   ", "        "] };
-
-function getClock() {
-    const time = new Date().toLocaleTimeString('en-US', {timeZone: 'Asia/Bangkok', hour12: false});
-    let lines = ["", "", "", "", ""];
-    for (const char of time) {
-        const digit = asciiDigits[char] || asciiDigits[':'];
-        for (let i = 0; i < 5; i++) lines[i] += digit[i] + " ";
-    }
-    return "```\n" + lines.join("\n") + "\n```";
+if (mongoose.connection.readyState === 0) {
+    mongoose.connect(process.env.MONGO_URL).then(() => console.log('Web DB Connected! 📦'));
 }
 
-client.once('ready', () => {
-    console.log(`Bot Online as: ${client.user.tag}`);
-    client.user.setActivity('Masaru Dashboard', { type: ActivityType.Watching });
-    
-    setInterval(async () => {
-        try {
-            const channel = await client.channels.fetch(CLOCK_CHANNEL_ID);
-            if (channel) {
-                const clockMsg = `🕘 **นาฬิกาดิจิทัล**\n${getClock()}\n📅 ${new Date().toLocaleDateString('th-TH', {timeZone:'Asia/Bangkok'})}`;
-                const messages = await channel.messages.fetch({ limit: 1 });
-                if (messages.first()?.author.id === client.user.id) await messages.first().edit(clockMsg);
-                else await channel.send(clockMsg);
-            }
-        } catch (e) {}
-    }, 10000);
-});
+const User = mongoose.models.User || mongoose.model('User', new mongoose.Schema({
+    userId: String, xp: { type: Number, default: 0 }, level: { type: Number, default: 1 }
+}));
 
-// --- แก้ไข Voice Log (ใช้ fetch แทน cache เพื่อความชัวร์) ---
-client.on('voiceStateUpdate', async (oldState, newState) => {
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((obj, done) => done(null, obj));
+
+passport.use(new DiscordStrategy({
+    clientID: process.env.DISCORD_CLIENT_ID,
+    clientSecret: process.env.DISCORD_CLIENT_SECRET,
+    callbackURL: process.env.CALLBACK_URL,
+    scope: ['identify']
+}, (accessToken, refreshToken, profile, done) => done(null, profile)));
+
+app.use(session({
+    secret: 'masaru-v4-prod',
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({ mongoUrl: process.env.MONGO_URL }),
+    cookie: { secure: true, maxAge: 1000 * 60 * 60 * 24 * 7 }
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+app.get('/', (req, res) => req.isAuthenticated() ? res.redirect('/profile') : res.render('login'));
+app.get('/login', passport.authenticate('discord'));
+app.get('/auth/discord/callback', passport.authenticate('discord', { failureRedirect: '/' }), (req, res) => res.redirect('/profile'));
+
+app.get('/profile', async (req, res) => {
+    if (!req.isAuthenticated()) return res.redirect('/');
     try {
-        const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
-        if (!logChannel) return;
-        const user = newState.member.user;
-        const time = new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' });
+        let userData = await User.findOne({ userId: req.user.id });
+        if (!userData) userData = await User.create({ userId: req.user.id });
 
-        if (!oldState.channelId && newState.channelId) {
-            await logChannel.send(`\`\`\`diff\n+ [เข้าห้อง] ${user.username} -> ${newState.channel.name} (${time})\n\`\`\``);
-        } else if (oldState.channelId && !newState.channelId) {
-            await logChannel.send(`\`\`\`diff\n- [ออกห้อง] ${user.username} -> ${oldState.channel.name} (${time})\n\`\`\``);
+        let latestVideo = null;
+        if (process.env.YOUTUBE_API_KEY && process.env.YOUTUBE_CHANNEL_ID) {
+            try {
+                const ytUrl = `https://www.googleapis.com/youtube/v3/search?key=${process.env.YOUTUBE_API_KEY}&channelId=${process.env.YOUTUBE_CHANNEL_ID}&part=snippet,id&order=date&maxResults=1&type=video`;
+                const ytRes = await axios.get(ytUrl);
+                if (ytRes.data.items.length > 0) latestVideo = ytRes.data.items[0];
+            } catch (e) { console.error("YT API Error"); }
         }
-    } catch (e) { console.error("Voice Log Error"); }
+
+        const avatarUrl = req.user.avatar ? `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png` : 'https://cdn.discordapp.com/embed/avatars/0.png';
+        res.render('profile', { user: req.user, userData, avatarUrl, latestVideo, isAdmin: req.user.id === ADMIN_ID });
+    } catch (err) { res.status(500).send("Error"); }
 });
 
-client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.guild) return;
-    let data = await User.findOne({ userId: message.author.id });
-    if (!data) data = new User({ userId: message.author.id });
-    data.xp += 20;
-    if (data.xp >= (data.level * 100)) {
-        data.level += 1;
-        message.reply(`🎉 Level Up! **${data.level}**`);
-    }
-    await data.save();
-});
+app.get('/logout', (req, res) => req.logout(() => res.redirect('/')));
 
-client.login(process.env.TOKEN);
+app.listen(port, () => console.log(`🌐 Server active on ${port}`));
