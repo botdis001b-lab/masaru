@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Masaru Profile</title>
+    <title>Masaru Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #23272a; color: white; display: flex; min-height: 100vh; overflow-x: hidden; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #23272a; color: white; display: flex; min-height: 100vh; overflow: hidden; }
         
         /* Sidebar */
         .sidebar { width: 240px; background: #2c2f33; border-right: 1px solid #444; position: fixed; height: 100%; z-index: 100; }
@@ -13,66 +13,74 @@
         .nav-item:hover, .nav-item.active { background: #3c3f44; color: white; }
         .nav-icon { margin-right: 12px; }
 
-        /* พื้นที่หลัก */
-        .main { flex: 1; margin-left: 240px; padding: 40px; position: relative; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
+        /* พื้นที่หลัก (ตอนนี้จะว่างๆ เท่ๆ เลยครับ) */
+        .main { flex: 1; margin-left: 240px; position: relative; min-height: 100vh; background: url('https://www.transparenttextures.com/patterns/dark-matter.png'); }
 
-        /* --- จุดที่พี่เน้น: เมนูมุมขวาบน --- */
-        .top-right-nav { 
+        /* --- ส่วนจัดการโปรไฟล์มุมขวาบน --- */
+        .profile-menu { 
             position: absolute; 
-            top: 25px; 
+            top: 20px; 
             right: 30px; 
+            z-index: 1000;
+        }
+
+        /* ปุ่มรูปโปรไฟล์ */
+        .profile-trigger {
             display: flex; 
             align-items: center; 
-            background: rgba(47, 49, 54, 0.8);
-            padding: 8px 15px;
+            background: #2f3136;
+            padding: 5px 15px 5px 5px;
             border-radius: 50px;
             border: 1px solid #444;
             cursor: pointer;
+            transition: 0.3s;
         }
+        .profile-trigger:hover { background: #3c3f44; border-color: #5865f2; }
+        
         .mini-avatar { 
-            width: 32px; 
-            height: 32px; 
+            width: 35px; 
+            height: 35px; 
             border-radius: 50%; 
-            margin-right: 12px; 
             border: 2px solid #5865f2; 
+            margin-right: 10px;
         }
-        .top-username { font-size: 14px; font-weight: 500; color: #eeeeee; }
+        .top-username { font-size: 14px; font-weight: 500; }
 
-        /* การ์ดโปรไฟล์กลางจอ */
-        .profile-card { 
-            background: #2f3136; 
-            padding: 60px 40px; 
-            border-radius: 25px; 
-            width: 100%; 
-            max-width: 550px; 
-            text-align: center; 
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-            border-top: 4px solid #5865f2;
+        /* กล่องข้อมูลที่จะเด้งออกมา (Dropdown) */
+        .profile-dropdown {
+            position: absolute;
+            top: 55px;
+            right: 0;
+            width: 220px;
+            background: #2f3136;
+            border-radius: 15px;
+            border: 1px solid #444;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            padding: 20px;
+            display: none; /* ซ่อนไว้ก่อน */
+            animation: fadeIn 0.2s ease;
         }
-        .main-avatar { 
-            width: 150px; 
-            height: 150px; 
-            border-radius: 50%; 
-            border: 5px solid #5865f2; 
-            margin-bottom: 25px;
-            box-shadow: 0 0 25px rgba(88, 101, 242, 0.4);
-        }
-        .username-big { font-size: 36px; font-weight: bold; margin: 0; }
-        .id-text { color: #72767d; margin: 10px 0 35px 0; font-size: 14px; }
 
-        /* Stats */
-        .stats-container { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            background: #202225; 
-            border-radius: 18px; 
-            padding: 30px; 
-            gap: 20px;
+        /* แสดงเมื่อเอาเมาส์ชี้ */
+        .profile-menu:hover .profile-dropdown { display: block; }
+
+        .dropdown-id { color: #72767d; font-size: 11px; margin-bottom: 15px; display: block; }
+        
+        .stat-row { 
+            display: flex; 
+            justify-content: space-between; 
+            padding: 8px 0;
+            border-top: 1px solid #444;
         }
-        .stat-label { color: #b9bbbe; font-size: 13px; margin-bottom: 10px; text-transform: uppercase; }
-        .stat-val { font-size: 28px; font-weight: bold; }
+        .stat-label { color: #b9bbbe; font-size: 13px; }
+        .stat-val { font-weight: bold; }
         .color-lv { color: #f1c40f; }
         .color-xp { color: #5865f2; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body>
@@ -87,27 +95,27 @@
     </div>
 
     <div class="main">
-        <div class="top-right-nav">
-            <img src="<%= avatarUrl %>" class="mini-avatar">
-            <span class="top-username"><%= user.username %></span>
-        </div>
+        <div class="profile-menu">
+            <div class="profile-trigger">
+                <img src="<%= avatarUrl %>" class="mini-avatar">
+                <span class="top-username"><%= user.username %></span>
+            </div>
 
-        <div class="profile-card">
-            <img src="<%= avatarUrl %>" class="main-avatar">
-            <h1 class="username-big"><%= user.username %></h1>
-            <div class="id-text">ID: <%= user.id %></div>
-            
-            <div class="stats-container">
-                <div>
-                    <div class="stat-label">Level</div>
-                    <div class="stat-val color-lv"><%= userData.level %></div>
+            <div class="profile-dropdown">
+                <strong style="display: block; font-size: 16px;"><%= user.username %></strong>
+                <span class="dropdown-id">ID: <%= user.id %></span>
+                
+                <div class="stat-row">
+                    <span class="stat-label">Level</span>
+                    <span class="stat-val color-lv"><%= userData.level %></span>
                 </div>
-                <div>
-                    <div class="stat-label">Total XP</div>
-                    <div class="stat-val color-xp"><%= userData.xp %></div>
+                <div class="stat-row">
+                    <span class="stat-label">Experience</span>
+                    <span class="stat-val color-xp"><%= userData.xp %> XP</span>
                 </div>
             </div>
         </div>
-    </div>
+
+        </div>
 </body>
 </html>
