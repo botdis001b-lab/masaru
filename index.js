@@ -21,9 +21,9 @@ const client = new Client({
     ],
 });
 
-// --- ตั้งค่า ID ต่างๆ ---
-const CLOCK_CHANNEL_ID = '1483918700976410694'; // ID ห้องนาฬิกา
-const LOG_CHANNEL_ID = '1204742409347534900';   // ID ห้อง Log (อัปเดตใหม่ตามที่พี่บอก)
+// --- ตั้งค่า ID ---
+const CLOCK_CHANNEL_ID = '1483918700976410694'; // ห้องนาฬิกา
+const LOG_CHANNEL_ID = '1204742409347534900';   // ห้อง Log (แก้ตามที่พี่บอก)
 
 // --- ระบบนาฬิกา ASCII ---
 const asciiDigits = {
@@ -57,7 +57,6 @@ function getNewDigitalClock() {
     return "```\n" + lines.join("\n") + "\n```";
 }
 
-// --- เมื่อบอทพร้อมทำงาน ---
 client.once('ready', async () => {
     console.log(`Bot Online as: ${client.user.tag} 🤖`);
     client.user.setActivity('Masaru Dashboard', { type: ActivityType.Watching });
@@ -68,7 +67,7 @@ client.once('ready', async () => {
             if (channel) {
                 const messages = await channel.messages.fetch({ limit: 1 });
                 const lastMessage = messages.first();
-                const clockContent = `🕘 **ระนาฬิกาดิจิทัล (Real-time)**\n${getNewDigitalClock()}\n📅 วันที่: ${new Date().toLocaleDateString('th-TH')} | อัปเดตล่าสุด: ${new Date().toLocaleTimeString('th-TH')} น.`;
+                const clockContent = `🕘 **ระนาฬิกาดิจิทัล (Real-time)**\n${getNewDigitalClock()}\n📅 วันที่: ${new Date().toLocaleDateString('th-TH', {timeZone: 'Asia/Bangkok'})} | อัปเดตล่าสุด: ${new Date().toLocaleTimeString('th-TH', {timeZone: 'Asia/Bangkok'})} น.`;
                 
                 if (lastMessage && lastMessage.author.id === client.user.id) {
                     await lastMessage.edit(clockContent);
@@ -80,50 +79,38 @@ client.once('ready', async () => {
     }, 10000);
 });
 
-// --- ระบบ LOG คนเข้า-ออกห้องเสียง (รูปแบบ Code Block) ---
+// --- ระบบ LOG คนเข้า-ออกห้องเสียง (Code Block + Time Fix) ---
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
     if (!logChannel) return;
 
     const user = newState.member.user;
-    const time = new Date().toLocaleTimeString('th-TH');
+    // แก้ไข: บังคับให้ใช้เวลาไทย (Asia/Bangkok)
+    const time = new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' });
 
-    // กรณีเข้าห้อง
     if (!oldState.channelId && newState.channelId) {
-        const channelName = newState.channel.name;
-        logChannel.send(`\`\`\`diff\n+ [เข้าห้อง] ${user.username} เข้าห้อง: ${channelName} (${time} น.)\n\`\`\``);
+        logChannel.send(`\`\`\`diff\n+ [เข้าห้อง] ${user.username} เข้าห้อง: ${newState.channel.name} (${time} น.)\n\`\`\``);
     }
-
-    // กรณีออกจากห้อง
     else if (oldState.channelId && !newState.channelId) {
-        const channelName = oldState.channel.name;
-        logChannel.send(`\`\`\`diff\n- [ออกห้อง] ${user.username} ออกจากห้อง: ${channelName} (${time} น.)\n\`\`\``);
+        logChannel.send(`\`\`\`diff\n- [ออกห้อง] ${user.username} ออกจากห้อง: ${oldState.channel.name} (${time} น.)\n\`\`\``);
     }
-
-    // กรณีเปลี่ยนห้อง
     else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
         logChannel.send(`\`\`\`\n[ย้ายห้อง] ${user.username} ย้ายจาก ${oldState.channel.name} -> ${newState.channel.name} (${time} น.)\n\`\`\``);
     }
 });
 
-// --- ระบบเก็บเลเวลจากข้อความ ---
+// --- ระบบเลเวล ---
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
-
     let userData = await User.findOne({ userId: message.author.id });
-    if (!userData) {
-        userData = new User({ userId: message.author.id, xp: 0, level: 1 });
-    }
+    if (!userData) userData = new User({ userId: message.author.id });
 
-    const xpAdd = Math.floor(Math.random() * 11) + 15;
-    userData.xp += xpAdd;
-
+    userData.xp += Math.floor(Math.random() * 11) + 15;
     const nextLevelXP = userData.level * 100;
     if (userData.xp >= nextLevelXP) {
         userData.level += 1;
-        message.reply(`🎉 ยินดีด้วยคุณ **${message.author.username}**! เลเวลอัปเป็นระดับ **${userData.level}** แล้ว!`);
+        message.reply(`🎉 เลเวลอัปเป็นระดับ **${userData.level}**!`);
     }
-
     await userData.save();
 });
 
