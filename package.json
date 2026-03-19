@@ -1,7 +1,6 @@
 {
   "name": "masarubot",
-  "version": "1.0.0",
-  "description": "Discord Bot with Web Dashboard",
+  "version": "1.1.0",
   "main": "index.js",
   "scripts": {
     "start": "node server.js & node index.js"

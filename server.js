@@ -9,15 +9,13 @@ const axios = require('axios');
 
 const app = express();
 const port = process.env.PORT || 8080;
-const ADMIN_ID = '550122613087666177';
+const ADMIN_ID = '550122613087666177'; // ID ของพี่
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1);
 
-if (mongoose.connection.readyState === 0) {
-    mongoose.connect(process.env.MONGO_URL).then(() => console.log('Web DB Connected! 📦'));
-}
+mongoose.connect(process.env.MONGO_URL).then(() => console.log('Web DB Connected! 📦'));
 
 const User = mongoose.models.User || mongoose.model('User', new mongoose.Schema({
     userId: String, xp: { type: Number, default: 0 }, level: { type: Number, default: 1 }
@@ -34,7 +32,7 @@ passport.use(new DiscordStrategy({
 }, (accessToken, refreshToken, profile, done) => done(null, profile)));
 
 app.use(session({
-    secret: 'masaru-v4-final',
+    secret: 'masaru-v5-secret',
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({ mongoUrl: process.env.MONGO_URL }),
@@ -44,37 +42,40 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// --- ROUTES ---
+// middleware ส่งค่า isAdmin ไปทุกหน้า
+app.use((req, res, next) => {
+    res.locals.isAdmin = req.isAuthenticated() && req.user.id === ADMIN_ID;
+    next();
+});
+
 app.get('/', (req, res) => req.isAuthenticated() ? res.redirect('/profile') : res.render('login'));
 app.get('/login', passport.authenticate('discord'));
 app.get('/auth/discord/callback', passport.authenticate('discord', { failureRedirect: '/' }), (req, res) => res.redirect('/profile'));
 
-// หน้าโปรไฟล์หลัก (โชว์เลเวล)
 app.get('/profile', async (req, res) => {
     if (!req.isAuthenticated()) return res.redirect('/');
-    try {
-        let userData = await User.findOne({ userId: req.user.id });
-        if (!userData) userData = await User.create({ userId: req.user.id });
-        const avatarUrl = req.user.avatar ? `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png` : 'https://cdn.discordapp.com/embed/avatars/0.png';
-        res.render('profile', { user: req.user, userData, avatarUrl, isAdmin: req.user.id === ADMIN_ID });
-    } catch (err) { res.status(500).send("Error"); }
+    const userData = await User.findOne({ userId: req.user.id }) || await User.create({ userId: req.user.id });
+    const avatarUrl = `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`;
+    res.render('profile', { user: req.user, userData, avatarUrl });
 });
 
-// หน้า YouTube แยกต่างหาก
 app.get('/youtube', async (req, res) => {
     if (!req.isAuthenticated()) return res.redirect('/');
+    let videos = [];
     try {
-        let videos = [];
-        if (process.env.YOUTUBE_API_KEY && process.env.YOUTUBE_CHANNEL_ID) {
-            try {
-                const ytUrl = `https://www.googleapis.com/youtube/v3/search?key=${process.env.YOUTUBE_API_KEY}&channelId=${process.env.YOUTUBE_CHANNEL_ID}&part=snippet,id&order=date&maxResults=6&type=video`;
-                const ytRes = await axios.get(ytUrl);
-                videos = ytRes.data.items;
-            } catch (e) { console.error("YT API Error"); }
-        }
-        const avatarUrl = req.user.avatar ? `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png` : 'https://cdn.discordapp.com/embed/avatars/0.png';
-        res.render('youtube', { user: req.user, avatarUrl, videos, isAdmin: req.user.id === ADMIN_ID });
-    } catch (err) { res.status(500).send("Error"); }
+        const ytUrl = `https://www.googleapis.com/youtube/v3/search?key=${process.env.YOUTUBE_API_KEY}&channelId=${process.env.YOUTUBE_CHANNEL_ID}&part=snippet,id&order=date&maxResults=3&type=video`;
+        const ytRes = await axios.get(ytUrl);
+        videos = ytRes.data.items;
+    } catch (e) { console.log("YT Error"); }
+    const avatarUrl = `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`;
+    res.render('youtube', { user: req.user, avatarUrl, videos });
+});
+
+app.get('/admin', async (req, res) => {
+    if (!res.locals.isAdmin) return res.status(403).send("Admin Only");
+    const totalUsers = await User.countDocuments();
+    const avatarUrl = `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`;
+    res.render('admin', { user: req.user, avatarUrl, totalUsers });
 });
 
 app.get('/logout', (req, res) => req.logout(() => res.redirect('/')));
