@@ -8,26 +8,28 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 8080;
 
-// --- [DEBUG] เช็กตำแหน่งไฟล์ป้องกัน View Error ---
-console.log('📁 Current Directory:', __dirname);
-console.log('📁 Views Directory:', path.join(__dirname, 'views'));
+// --- [CONFIG] ---
+const ADMIN_ID = '550122613087666177';
 
 // ตั้งค่า View Engine
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1); 
 
-// เชื่อมต่อ MongoDB พร้อมระบบแจ้งเตือน
+// เชื่อมต่อ MongoDB
 mongoose.connect(process.env.MONGO_URL)
     .then(() => console.log('Web DB Connected! 📦'))
     .catch(err => console.error('❌ MongoDB Connection Fail:', err));
 
-const User = mongoose.models.User || mongoose.model('User', new mongoose.Schema({
+// Schema สำหรับ User
+const userSchema = new mongoose.Schema({
     userId: String,
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 }
-}));
+});
+const User = mongoose.models.User || mongoose.model('User', userSchema);
 
+// Passport Setup
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
@@ -41,7 +43,7 @@ passport.use(new DiscordStrategy({
 }));
 
 app.use(session({
-    secret: 'masaru-safe-v2',
+    secret: 'masaru-admin-secure-v3',
     resave: false,
     saveUninitialized: false,
     cookie: { secure: true, maxAge: 60000 * 60 * 24 }
@@ -50,40 +52,30 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// --- [Routes] ---
+// --- [MIDDLEWARE] ---
+const isAdmin = (req, res, next) => {
+    if (req.isAuthenticated() && req.user.id === ADMIN_ID) {
+        return next();
+    }
+    res.status(403).send('🔒 Access Denied: เฉพาะเจ้าของบอท ID 550122613087666177 เท่านั้นที่เข้าได้');
+};
+
+// --- [ROUTES] ---
 app.get('/', (req, res) => {
     if (req.isAuthenticated()) return res.redirect('/profile');
-    res.render('login', (err, html) => {
-        if (err) {
-            console.error('❌ Render Login Error:', err);
-            return res.status(500).send(`Render Error: ${err.message}. Check if views/login.ejs exists.`);
-        }
-        res.send(html);
-    });
+    res.render('login');
 });
 
-app.get('/login', (req, res, next) => {
-    console.log('🔄 Starting Discord Auth...');
-    passport.authenticate('discord')(req, res, next);
-});
+app.get('/login', passport.authenticate('discord'));
 
-app.get('/auth/discord/callback', (req, res, next) => {
-    passport.authenticate('discord', (err, user, info) => {
-        if (err) {
-            console.error('❌ Auth Callback Error:', err);
-            return res.status(500).send(`Auth Error: ${err.message}`);
-        }
-        if (!user) return res.redirect('/');
-        req.logIn(user, (err) => {
-            if (err) return next(err);
-            res.redirect('/profile');
-        });
-    })(req, res, next);
+app.get('/auth/discord/callback', passport.authenticate('discord', { failureRedirect: '/' }), (req, res) => {
+    res.redirect('/profile');
 });
 
 app.get('/profile', async (req, res) => {
     if (!req.isAuthenticated()) return res.redirect('/');
     try {
+        // หาข้อมูล หรือสร้างใหม่ถ้าไม่มี
         let userData = await User.findOne({ userId: req.user.id });
         if (!userData) {
             userData = await User.create({ userId: req.user.id, xp: 0, level: 1 });
@@ -97,22 +89,32 @@ app.get('/profile', async (req, res) => {
             user: req.user, 
             userData: userData, 
             avatarUrl: avatarUrl,
-            currentPage: 'profile' 
+            currentPage: 'profile',
+            isAdmin: req.user.id === ADMIN_ID 
         });
     } catch (err) {
-        console.error('❌ Profile Load Error:', err);
-        res.status(500).send(`DB Error: ${err.message}`);
+        console.error(err);
+        res.status(500).send("Database Error");
     }
+});
+
+// หน้า Admin (เข้าได้เฉพาะพี่)
+app.get('/admin/manage', isAdmin, (req, res) => {
+    // ส่งตัวแปรที่จำเป็นไปให้หน้า admin_panel.ejs ด้วย
+    res.render('admin_panel', { 
+        user: req.user, 
+        currentPage: 'admin',
+        isAdmin: true 
+    });
 });
 
 app.get('/logout', (req, res) => {
     req.logout(() => res.redirect('/'));
 });
 
-// ดักจับ Error รวม
-app.use((err, req, res, next) => {
-    console.error('🔥 Global Bug Catch:', err.stack);
-    res.status(500).send(`Something went wrong: ${err.message}`);
+// จัดการกรณี Error 404 (หาหน้าไม่เจอ)
+app.use((req, res) => {
+    res.status(404).send('ไม่พบหน้านี้ในระบบ Masaru Bot');
 });
 
 app.listen(port, () => console.log(`🌐 Web Dashboard Online on Port ${port}`));
