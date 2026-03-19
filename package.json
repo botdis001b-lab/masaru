@@ -1,7 +1,6 @@
 {
   "name": "masarubot",
   "version": "1.0.0",
-  "description": "Discord Bot with Web Dashboard",
   "main": "server.js",
   "scripts": {
     "start": "node server.js & node index.js"
@@ -16,6 +15,6 @@
     "discord.js": "^14.11.0"
   },
   "engines": {
-    "node": ">=18.0.0" 
+    "node": ">=18.0.0"
   }
 }
