@@ -3,11 +3,14 @@ const session = require('express-session');
 const passport = require('passport');
 const DiscordStrategy = require('passport-discord').Strategy;
 const mongoose = require('mongoose');
+const path = require('path');
 
 const app = express();
-const port = process.env.PORT || 8080; // ใช้ Port ตามที่ Railway กำหนดใน Log
+const port = process.env.PORT || 8080;
 
-// --- จุดสำคัญมากสำหรับ Railway ---
+// ตั้งค่า EJS
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1); 
 
 mongoose.connect(process.env.MONGO_URL).then(() => console.log('Web DB Connected! 📦'));
@@ -34,72 +37,41 @@ app.use(session({
     secret: 'masaru-standalone-v1',
     resave: false,
     saveUninitialized: false,
-    cookie: {
-        secure: true, // บังคับใช้ HTTPS
-        maxAge: 60000 * 60 * 24 // 24 ชม.
-    }
+    cookie: { secure: true, maxAge: 60000 * 60 * 24 }
 }));
 
 app.use(passport.initialize());
 app.use(passport.session());
 
+// --- Routes ---
 app.get('/', (req, res) => {
-    res.send(`<body style="background:#23272a;color:white;text-align:center;font-family:sans-serif;padding-top:100px;">
-        <h1 style="font-size:40px;">🚀 Masaru Dashboard</h1>
-        <a href="/login" style="background:#5865F2;color:white;padding:15px 40px;text-decoration:none;border-radius:8px;font-weight:bold;">Login with Discord</a>
-    </body>`);
+    if (req.isAuthenticated()) return res.redirect('/profile');
+    res.render('login'); // ดึงไฟล์ views/login.ejs
 });
 
 app.get('/login', passport.authenticate('discord'));
 
-// --- ส่วนที่ปรับปรุง: ดัก Error ตอน Callback ---
-app.get('/auth/discord/callback', (req, res, next) => {
-    passport.authenticate('discord', (err, user, info) => {
-        if (err) {
-            console.error('❌ Discord Auth Error:', err);
-            return res.status(500).send(`Login Error: ${err.message}`);
-        }
-        if (!user) return res.redirect('/');
-        
-        req.logIn(user, (err) => {
-            if (err) return next(err);
-            res.redirect('/profile');
-        });
-    })(req, res, next);
+app.get('/auth/discord/callback', passport.authenticate('discord', { failureRedirect: '/' }), (req, res) => {
+    res.redirect('/profile');
 });
 
 app.get('/profile', async (req, res) => {
+    if (!req.isAuthenticated()) return res.redirect('/');
     try {
-        if (!req.isAuthenticated()) return res.redirect('/');
-        
-        // ค้นหาข้อมูล ถ้าไม่มีให้สร้างใหม่ (กันบักหน้าเว็บล้ม)
-        let userData = await User.findOne({ userId: req.user.id });
-        if (!userData) {
-            userData = await User.create({ userId: req.user.id, xp: 0, level: 1 });
-        }
-
+        const userData = await User.findOne({ userId: req.user.id }) || { xp: 0, level: 1 };
         const avatarUrl = req.user.avatar 
             ? `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png` 
             : 'https://cdn.discordapp.com/embed/avatars/0.png';
         
-        res.send(`<body style="background:#23272a;color:white;text-align:center;font-family:sans-serif;padding:50px;">
-            <div style="background:#2c2f33;padding:40px;border-radius:20px;display:inline-block;border-top:5px solid #5865F2;">
-                <img src="${avatarUrl}" style="border-radius:50%;width:120px;border:4px solid #5865F2;">
-                <h2>สวัสดีคุณ ${req.user.username}</h2>
-                <hr style="border:0;border-top:1px solid #444;">
-                <p style="font-size:20px;">Level: <span style="color:#f1c40f;">${userData.level}</span></p>
-                <p>XP: ${userData.xp}</p>
-                <br><a href="/logout" style="color:#ed4245;">Logout</a>
-            </div>
-        </body>`);
-    } catch (err) {
-        console.error('🔥 Profile Error:', err);
-        res.status(500).send("เกิดข้อผิดพลาดในการดึงข้อมูลจาก Database");
-    }
+        res.render('profile', { 
+            user: req.user, 
+            userData: userData, 
+            avatarUrl: avatarUrl,
+            currentPage: 'profile' 
+        });
+    } catch (err) { res.status(500).send("DB Error"); }
 });
 
-app.get('/logout', (req, res) => {
-    req.logout(() => res.redirect('/'));
-});
+app.get('/logout', (req, res) => { req.logout(() => res.redirect('/')); });
 
 app.listen(port, () => console.log(`🌐 Web Dashboard Online on Port ${port}`));
