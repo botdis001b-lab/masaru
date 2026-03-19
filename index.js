@@ -23,7 +23,7 @@ const client = new Client({
 
 // --- ตั้งค่า ID ---
 const CLOCK_CHANNEL_ID = '1483918700976410694'; // ห้องนาฬิกา
-const LOG_CHANNEL_ID = '1204742409347534900';   // ห้อง Log (แก้ตามที่พี่บอก)
+const LOG_CHANNEL_ID = '1204742409347534900';   // ห้อง Log
 
 // --- ระบบนาฬิกา ASCII ---
 const asciiDigits = {
@@ -79,23 +79,27 @@ client.once('ready', async () => {
     }, 10000);
 });
 
-// --- ระบบ LOG คนเข้า-ออกห้องเสียง (Code Block + Time Fix) ---
+// --- ระบบ LOG คนเข้า-ออกห้องเสียง (ปรับแก้จุด fetch เพื่อให้ Log ทำงาน) ---
 client.on('voiceStateUpdate', async (oldState, newState) => {
-    const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
-    if (!logChannel) return;
+    try {
+        // เปลี่ยนจาก cache เป็น fetch เพื่อป้องกันบอทหาห้องไม่เจอ
+        const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+        if (!logChannel) return;
 
-    const user = newState.member.user;
-    // แก้ไข: บังคับให้ใช้เวลาไทย (Asia/Bangkok)
-    const time = new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' });
+        const user = newState.member.user;
+        const time = new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' });
 
-    if (!oldState.channelId && newState.channelId) {
-        logChannel.send(`\`\`\`diff\n+ [เข้าห้อง] ${user.username} เข้าห้อง: ${newState.channel.name} (${time} น.)\n\`\`\``);
-    }
-    else if (oldState.channelId && !newState.channelId) {
-        logChannel.send(`\`\`\`diff\n- [ออกห้อง] ${user.username} ออกจากห้อง: ${oldState.channel.name} (${time} น.)\n\`\`\``);
-    }
-    else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
-        logChannel.send(`\`\`\`\n[ย้ายห้อง] ${user.username} ย้ายจาก ${oldState.channel.name} -> ${newState.channel.name} (${time} น.)\n\`\`\``);
+        if (!oldState.channelId && newState.channelId) {
+            logChannel.send(`\`\`\`diff\n+ [เข้าห้อง] ${user.username} เข้าห้อง: ${newState.channel.name} (${time} น.)\n\`\`\``);
+        }
+        else if (oldState.channelId && !newState.channelId) {
+            logChannel.send(`\`\`\`diff\n- [ออกห้อง] ${user.username} ออกจากห้อง: ${oldState.channel.name} (${time} น.)\n\`\`\``);
+        }
+        else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
+            logChannel.send(`\`\`\`\n[ย้ายห้อง] ${user.username} ย้ายจาก ${oldState.channel.name} -> ${newState.channel.name} (${time} น.)\n\`\`\``);
+        }
+    } catch (err) {
+        console.error("Voice Log Error:", err);
     }
 });
 
