@@ -1,31 +1,41 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Admin Panel - Masaru</title>
+    <title>Admin Console - Masaru</title>
     <style>
         body { margin: 0; font-family: sans-serif; background: #1a1c1e; color: white; display: flex; }
-        .sidebar { width: 250px; background: #2c2f33; height: 100vh; position: fixed; }
-        .nav-item { padding: 15px 25px; display: block; color: #b9bbbe; text-decoration: none; }
-        .main-content { margin-left: 250px; padding: 40px; width: 100%; }
-        .status-card { background: #2c2f33; padding: 20px; border-radius: 10px; border-left: 5px solid #f1c40f; }
+        .sidebar { width: 260px; background: #2c2f33; height: 100vh; position: fixed; border-right: 1px solid #444; }
+        .main-content { margin-left: 260px; padding: 40px; width: 100%; }
+        .admin-card { background: #2c2f33; padding: 30px; border-radius: 15px; border-left: 6px solid #f1c40f; box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
+        .status-badge { padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; background: #2ecc7122; color: #2ecc71; border: 1px solid #2ecc71; }
     </style>
 </head>
 <body>
     <div class="sidebar">
-        <div style="padding: 20px; font-weight: bold; color: #f1c40f;">ADMIN CONSOLE</div>
+        <div style="padding: 25px; font-weight: bold; color: #f1c40f; border-bottom: 1px solid #444; text-align: center;">ADMIN CONSOLE</div>
         <a href="/profile" style="padding: 15px 25px; display: block; color: #b9bbbe; text-decoration: none;">⬅️ กลับหน้าหลัก</a>
     </div>
 
     <div class="main-content">
-        <div class="status-card">
-            <h1>🛠️ ระบบจัดการหลังบ้าน</h1>
-            <p>สวัสดีครับพี่ นี่คือพื้นที่ส่วนตัวสำหรับ ID: <b>550122613087666177</b></p>
-            <hr style="border: 0; border-top: 1px solid #444; margin: 20px 0;">
-            <h3>สถานะเซิร์ฟเวอร์</h3>
-            <ul>
-                <li>Database: <span style="color: #2ecc71;">Connected ✅</span></li>
-                <li>Bot Process: <span style="color: #2ecc71;">Running ✅</span></li>
-            </ul>
+        <div class="admin-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h1>🛠️ แผงควบคุมเจ้าของบอท</h1>
+                <span class="status-badge">ADMIN AUTHENTICATED</span>
+            </div>
+            <p>ยินดีต้อนรับกลับครับพี่! ตอนนี้พี่กำลังจัดการระบบในฐานะ ID: <b>550122613087666177</b></p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 30px;">
+                <div style="background: #23272a; padding: 20px; border-radius: 10px;">
+                    <h4>📡 สถานะการเชื่อมต่อ</h4>
+                    <p style="color: #2ecc71;">● MongoDB: Connected</p>
+                    <p style="color: #2ecc71;">● Discord API: Ready</p>
+                </div>
+                <div style="background: #23272a; padding: 20px; border-radius: 10px;">
+                    <h4>📊 สถิติเบื้องต้น</h4>
+                    <p>จำนวนผู้ใช้งานในระบบ: ดึงข้อมูล...</p>
+                    <p>คำสั่งที่ถูกใช้ล่าสุด: -</p>
+                </div>
+            </div>
         </div>
     </div>
 </body>

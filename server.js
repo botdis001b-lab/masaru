@@ -21,7 +21,7 @@ mongoose.connect(process.env.MONGO_URL)
     .then(() => console.log('Web DB Connected! 📦'))
     .catch(err => console.error('❌ MongoDB Connection Fail:', err));
 
-// Schema สำหรับ User
+// Schema สำหรับ User (ป้องกันการประกาศซ้ำ)
 const userSchema = new mongoose.Schema({
     userId: String,
     xp: { type: Number, default: 0 },
@@ -43,7 +43,7 @@ passport.use(new DiscordStrategy({
 }));
 
 app.use(session({
-    secret: 'masaru-admin-secure-v3',
+    secret: 'masaru-super-secret-v4',
     resave: false,
     saveUninitialized: false,
     cookie: { secure: true, maxAge: 60000 * 60 * 24 }
@@ -53,11 +53,12 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // --- [MIDDLEWARE] ---
+// ตัวเช็กว่าเป็น Admin (ID พี่) หรือไม่
 const isAdmin = (req, res, next) => {
     if (req.isAuthenticated() && req.user.id === ADMIN_ID) {
         return next();
     }
-    res.status(403).send('🔒 Access Denied: เฉพาะเจ้าของบอท ID 550122613087666177 เท่านั้นที่เข้าได้');
+    res.status(403).send('<h1>🔒 Access Denied</h1><p>เฉพาะเจ้าของบอท ID 550122613087666177 เท่านั้นที่มีสิทธิ์เข้าถึงหน้านี้</p><a href="/profile">กลับหน้าโปรไฟล์</a>');
 };
 
 // --- [ROUTES] ---
@@ -93,14 +94,13 @@ app.get('/profile', async (req, res) => {
             isAdmin: req.user.id === ADMIN_ID 
         });
     } catch (err) {
-        console.error(err);
-        res.status(500).send("Database Error");
+        console.error('Profile Error:', err);
+        res.status(500).send("เกิดข้อผิดพลาดในการดึงข้อมูล Database");
     }
 });
 
-// หน้า Admin (เข้าได้เฉพาะพี่)
+// หน้า Admin ลับ (เข้าได้เฉพาะพี่)
 app.get('/admin/manage', isAdmin, (req, res) => {
-    // ส่งตัวแปรที่จำเป็นไปให้หน้า admin_panel.ejs ด้วย
     res.render('admin_panel', { 
         user: req.user, 
         currentPage: 'admin',
@@ -112,7 +112,7 @@ app.get('/logout', (req, res) => {
     req.logout(() => res.redirect('/'));
 });
 
-// จัดการกรณี Error 404 (หาหน้าไม่เจอ)
+// ดัก Error 404
 app.use((req, res) => {
     res.status(404).send('ไม่พบหน้านี้ในระบบ Masaru Bot');
 });
