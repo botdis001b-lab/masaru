@@ -8,12 +8,15 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 8080;
 
-// ตั้งค่า EJS
+// ตั้งค่า View Engine (EJS)
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1); 
 
-mongoose.connect(process.env.MONGO_URL).then(() => console.log('Web DB Connected! 📦'));
+// เชื่อมต่อ MongoDB
+mongoose.connect(process.env.MONGO_URL)
+    .then(() => console.log('Web DB Connected! 📦'))
+    .catch(err => console.error('DB Connection Error:', err));
 
 const User = mongoose.models.User || mongoose.model('User', new mongoose.Schema({
     userId: String,
@@ -46,7 +49,7 @@ app.use(passport.session());
 // --- Routes ---
 app.get('/', (req, res) => {
     if (req.isAuthenticated()) return res.redirect('/profile');
-    res.render('login'); // ดึงไฟล์ views/login.ejs
+    res.render('login');
 });
 
 app.get('/login', passport.authenticate('discord'));
@@ -58,7 +61,11 @@ app.get('/auth/discord/callback', passport.authenticate('discord', { failureRedi
 app.get('/profile', async (req, res) => {
     if (!req.isAuthenticated()) return res.redirect('/');
     try {
-        const userData = await User.findOne({ userId: req.user.id }) || { xp: 0, level: 1 };
+        let userData = await User.findOne({ userId: req.user.id });
+        if (!userData) {
+            userData = await User.create({ userId: req.user.id, xp: 0, level: 1 });
+        }
+        
         const avatarUrl = req.user.avatar 
             ? `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png` 
             : 'https://cdn.discordapp.com/embed/avatars/0.png';
@@ -69,9 +76,14 @@ app.get('/profile', async (req, res) => {
             avatarUrl: avatarUrl,
             currentPage: 'profile' 
         });
-    } catch (err) { res.status(500).send("DB Error"); }
+    } catch (err) {
+        console.error('Profile Error:', err);
+        res.status(500).send("Database Error - ติดต่อแอดมิน");
+    }
 });
 
-app.get('/logout', (req, res) => { req.logout(() => res.redirect('/')); });
+app.get('/logout', (req, res) => {
+    req.logout(() => res.redirect('/'));
+});
 
 app.listen(port, () => console.log(`🌐 Web Dashboard Online on Port ${port}`));
