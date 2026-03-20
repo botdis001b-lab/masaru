@@ -25,10 +25,11 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', 1);
 
+// เชื่อมต่อ Web DB
 mongoose.connect(process.env.MONGO_URL).then(() => {
     console.log('Web DB Connected! 📦');
     addLog("Database Connected Successfully");
-});
+}).catch(err => console.error("DB Connection Error:", err));
 
 const User = mongoose.models.User || mongoose.model('User', new mongoose.Schema({
     userId: String, xp: { type: Number, default: 0 }, level: { type: Number, default: 1 }
@@ -46,7 +47,7 @@ passport.use(new DiscordStrategy({
 
 // ระบบ Security Token สำหรับ Session
 app.use(session({
-    secret: crypto.randomBytes(32).toString('hex'),
+    secret: crypto.randomBytes(32).toString('hex'), // Token สุ่มเพื่อความปลอดภัย
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({ mongoUrl: process.env.MONGO_URL }),
@@ -56,6 +57,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Middleware ตรวจสอบ Admin
 app.use((req, res, next) => {
     res.locals.isAdmin = req.isAuthenticated() && req.user.id === ADMIN_ID;
     next();
@@ -63,6 +65,8 @@ app.use((req, res, next) => {
 
 // --- ROUTES ---
 app.get('/', (req, res) => req.isAuthenticated() ? res.redirect('/profile') : res.render('login'));
+app.get('/login', passport.authenticate('discord'));
+app.get('/auth/discord/callback', passport.authenticate('discord', { failureRedirect: '/' }), (req, res) => res.redirect('/profile'));
 
 app.get('/profile', async (req, res) => {
     if (!req.isAuthenticated()) return res.redirect('/');
@@ -75,6 +79,7 @@ app.get('/youtube', async (req, res) => {
     if (!req.isAuthenticated()) return res.redirect('/');
     let videos = [];
     try {
+        // จำกัด 3 คลิปตามสั่งครับ
         const ytUrl = `https://www.googleapis.com/youtube/v3/search?key=${process.env.YOUTUBE_API_KEY}&channelId=${process.env.YOUTUBE_CHANNEL_ID}&part=snippet,id&order=date&maxResults=3&type=video`;
         const ytRes = await axios.get(ytUrl);
         videos = ytRes.data.items;
@@ -86,7 +91,7 @@ app.get('/youtube', async (req, res) => {
 app.get('/admin', async (req, res) => {
     if (!res.locals.isAdmin) {
         addLog(`Blocked access attempt from ID: ${req.user?.id || 'Unknown'}`);
-        return res.status(403).send("No Permission");
+        return res.status(403).render('error', { msg: "No Permission" }); // ป้องกันหน้าขาว
     }
     const totalUsers = await User.countDocuments();
     const allUsers = await User.find({});
@@ -107,4 +112,5 @@ app.post('/admin/update-user', async (req, res) => {
 });
 
 app.get('/logout', (req, res) => req.logout(() => res.redirect('/')));
+
 app.listen(port, () => console.log(`🌐 Server active on ${port}`));

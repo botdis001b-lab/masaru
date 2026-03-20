@@ -1,20 +1,21 @@
 <!DOCTYPE html>
-<html>
+<html lang="th">
 <head>
+    <meta charset="UTF-8">
     <title>Master Control</title>
     <style>
         body { margin: 0; font-family: sans-serif; background: #1a1c1e; color: white; display: flex; }
-        .sidebar { width: 240px; background: #2c2f33; height: 100vh; position: fixed; }
+        .sidebar { width: 240px; background: #2c2f33; height: 100vh; position: fixed; border-right: 1px solid #444; }
         .main { flex: 1; margin-left: 240px; padding: 30px; }
         .card { background: #2f3136; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #444; }
         .log-box { background: #000; color: #00ff00; padding: 15px; font-family: monospace; height: 150px; overflow-y: auto; border-radius: 8px; font-size: 12px; }
-        input { background: #23272a; color: white; border: 1px solid #444; padding: 5px; border-radius: 4px; width: 50px; }
-        .btn-save { background: #2ecc71; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        input { background: #23272a; color: white; border: 1px solid #444; padding: 5px; border-radius: 4px; width: 60px; }
+        .btn-save { background: #2ecc71; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="sidebar">
-        <div style="padding: 25px; font-weight: bold; color: #f1c40f;">ADMIN PANEL</div>
+        <div style="padding: 25px; font-weight: bold; color: #f1c40f; font-size: 20px;">MASTER CONTROL</div>
         <a href="/profile" style="padding: 15px 25px; display: block; color: white; text-decoration: none;">🏠 กลับหน้าโปรไฟล์</a>
     </div>
     <div class="main">
@@ -22,15 +23,17 @@
             <div class="card">
                 <h3>👥 จัดการผู้ใช้ (<%= totalUsers %> คน)</h3>
                 <table style="width: 100%; text-align: left;">
-                    <tr style="color: #b9bbbe; font-size: 12px;"><th>ID</th><th>LV</th><th>XP</th><th>ACTION</th></tr>
+                    <tr style="color: #b9bbbe; font-size: 12px; border-bottom: 1px solid #444;">
+                        <th style="padding: 10px;">ID</th><th>Level</th><th>XP</th><th>Action</th>
+                    </tr>
                     <% allUsers.forEach(u => { %>
                     <tr style="border-bottom: 1px solid #333;">
                         <form action="/admin/update-user" method="POST">
                             <input type="hidden" name="userId" value="<%= u.userId %>">
-                            <td style="font-size: 11px;"><%= u.userId %></td>
+                            <td style="font-size: 11px; padding: 10px;"><%= u.userId %></td>
                             <td><input type="number" name="level" value="<%= u.level %>"></td>
-                            <td><input type="number" name="xp" value="<%= u.xp %>" style="width: 70px;"></td>
-                            <td><button type="submit" class="btn-save">SAVE</button></td>
+                            <td><input type="number" name="xp" value="<%= u.xp %>" style="width: 80px;"></td>
+                            <td><button type="submit" class="btn-save">บันทึก</button></td>
                         </form>
                     </tr>
                     <% }) %>
@@ -38,9 +41,9 @@
             </div>
             <div>
                 <div class="card" style="border-left: 4px solid #f1c40f;">
-                    <h3>🔑 Config Check</h3>
-                    <div style="font-size: 13px;">
-                        <p>YouTube API: <span style="color: #2ecc71;"><%= configKeys.YT_KEY %></span></p>
+                    <h3>🔑 Configuration Status</h3>
+                    <div style="font-size: 14px;">
+                        <p>YouTube Key: <span style="color: #2ecc71;"><%= configKeys.YT_KEY %></span></p>
                         <p>Database: <span style="color: #2ecc71;">CONNECTED ✅</span></p>
                     </div>
                 </div>
