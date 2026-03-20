@@ -15,12 +15,17 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1);
 
+// เชื่อมต่อ MongoDB
 mongoose.connect(process.env.MONGO_URL).then(() => console.log('Web DB Connected! 📦'));
 
+// โครงสร้างข้อมูล User
 const User = mongoose.models.User || mongoose.model('User', new mongoose.Schema({
-    userId: String, xp: { type: Number, default: 0 }, level: { type: Number, default: 1 }
+    userId: String, 
+    xp: { type: Number, default: 0 }, 
+    level: { type: Number, default: 1 }
 }));
 
+// ตั้งค่า Passport
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
@@ -31,8 +36,9 @@ passport.use(new DiscordStrategy({
     scope: ['identify']
 }, (accessToken, refreshToken, profile, done) => done(null, profile)));
 
+// ตั้งค่า Session
 app.use(session({
-    secret: 'masaru-vfinal',
+    secret: 'masaru-vfinal-secure',
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({ mongoUrl: process.env.MONGO_URL }),
@@ -42,11 +48,13 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// เช็กสถานะ Admin สำหรับทุกหน้า
+// เช็กสถานะ Admin สำหรับส่งค่าไปทุกหน้า
 app.use((req, res, next) => {
     res.locals.isAdmin = req.isAuthenticated() && req.user.id === ADMIN_ID;
     next();
 });
+
+// --- ROUTES ---
 
 app.get('/', (req, res) => req.isAuthenticated() ? res.redirect('/profile') : res.render('login'));
 app.get('/login', passport.authenticate('discord'));
@@ -63,7 +71,7 @@ app.get('/youtube', async (req, res) => {
     if (!req.isAuthenticated()) return res.redirect('/');
     let videos = [];
     try {
-        // จำกัดแค่ 3 คลิปตามสั่งครับพี่
+        // จำกัด 3 คลิปตามสั่งครับ
         const ytUrl = `https://www.googleapis.com/youtube/v3/search?key=${process.env.YOUTUBE_API_KEY}&channelId=${process.env.YOUTUBE_CHANNEL_ID}&part=snippet,id&order=date&maxResults=3&type=video`;
         const ytRes = await axios.get(ytUrl);
         videos = ytRes.data.items;
@@ -74,11 +82,18 @@ app.get('/youtube', async (req, res) => {
 
 app.get('/admin', async (req, res) => {
     if (!res.locals.isAdmin) return res.status(403).send("สิทธิ์ไม่เพียงพอ");
-    const totalUsers = await User.countDocuments();
-    const avatarUrl = `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`;
-    // ตรวจสอบให้แน่ใจว่าพี่มีไฟล์ views/admin.ejs อยู่จริงนะครับ
-    res.render('admin', { user: req.user, avatarUrl, totalUsers });
+    try {
+        const totalUsers = await User.countDocuments();
+        const avatarUrl = `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`;
+        res.render('admin', { user: req.user, avatarUrl, totalUsers });
+    } catch (err) { res.status(500).send("Admin Page Error"); }
 });
 
-app.get('/logout', (req, res) => req.logout(() => res.redirect('/')));
+app.get('/logout', (req, res, next) => {
+    req.logout((err) => {
+        if (err) return next(err);
+        res.redirect('/');
+    });
+});
+
 app.listen(port, () => console.log(`🌐 Server active on ${port}`));
