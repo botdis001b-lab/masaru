@@ -8,11 +8,9 @@
         .sidebar-header { padding: 30px 25px; font-weight: bold; color: #5865f2; font-size: 20px; }
         .nav-item { padding: 15px 25px; display: block; color: #b9bbbe; text-decoration: none; transition: 0.2s; }
         .nav-item:hover, .active { background: #3c3f44; color: white; }
-        
         .main { flex: 1; margin-left: 240px; position: relative; height: 100vh; }
         .profile-nav { position: absolute; top: 20px; right: 30px; z-index: 1000; }
         .mini-avatar { width: 42px; height: 42px; border-radius: 50%; border: 2px solid #5865f2; cursor: pointer; }
-        
         .dropdown { position: absolute; right: 0; top: 55px; background: #2f3136; padding: 20px; border-radius: 12px; display: none; width: 220px; border: 1px solid #444; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
         .profile-nav:hover .dropdown { display: block; }
         .stat-row { display: flex; justify-content: space-between; margin-top: 12px; border-top: 1px solid #444; padding-top: 10px; }
@@ -26,14 +24,13 @@
         <% if (isAdmin) { %><a href="/admin" class="nav-item" style="color: #f1c40f;">🛠️ ตั้งค่าบอท</a><% } %>
         <a href="/logout" class="nav-item" style="color: #ed4245;">🚪 ออกจากระบบ</a>
     </div>
-    
     <div class="main">
         <div class="profile-nav">
             <img src="<%= avatarUrl %>" class="mini-avatar">
             <div class="dropdown">
                 <strong><%= user.username %></strong>
                 <div class="stat-row"><span>Level</span><span style="color: #f1c40f; font-weight: bold;"><%= userData.level %></span></div>
-                <div class="stat-row"><span>XP</span><span style="color: #5865f2; font-weight: bold;"><%= userData.xp %></span></div>
+                <div class="stat-row"><span>Total XP</span><span style="color: #5865f2; font-weight: bold;"><%= userData.xp %></span></div>
             </div>
         </div>
     </div>
