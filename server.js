@@ -10,9 +10,10 @@ const crypto = require('crypto');
 
 const app = express();
 const port = process.env.PORT || 8080;
-const ADMIN_ID = '550122613087666177'; // ID ของพี่
 
-// ระบบ Log ภายใน
+// ตรวจสอบ ID นี้ให้ตรงกับ Discord ID ของพี่นะครับ
+const ADMIN_ID = '550122613087666177'; 
+
 let systemLogs = [];
 const addLog = (msg) => {
     const time = new Date().toLocaleString('th-TH');
@@ -25,11 +26,9 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', 1);
 
-// เชื่อมต่อ Web DB
 mongoose.connect(process.env.MONGO_URL).then(() => {
-    console.log('Web DB Connected! 📦');
     addLog("Database Connected Successfully");
-}).catch(err => console.error("DB Connection Error:", err));
+}).catch(err => console.error("DB Error:", err));
 
 const User = mongoose.models.User || mongoose.model('User', new mongoose.Schema({
     userId: String, xp: { type: Number, default: 0 }, level: { type: Number, default: 1 }
@@ -45,9 +44,8 @@ passport.use(new DiscordStrategy({
     scope: ['identify']
 }, (accessToken, refreshToken, profile, done) => done(null, profile)));
 
-// ระบบ Security Token สำหรับ Session
 app.use(session({
-    secret: crypto.randomBytes(32).toString('hex'), // Token สุ่มเพื่อความปลอดภัย
+    secret: crypto.randomBytes(32).toString('hex'),
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({ mongoUrl: process.env.MONGO_URL }),
@@ -57,7 +55,6 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Middleware ตรวจสอบ Admin
 app.use((req, res, next) => {
     res.locals.isAdmin = req.isAuthenticated() && req.user.id === ADMIN_ID;
     next();
@@ -79,7 +76,6 @@ app.get('/youtube', async (req, res) => {
     if (!req.isAuthenticated()) return res.redirect('/');
     let videos = [];
     try {
-        // จำกัด 3 คลิปตามสั่งครับ
         const ytUrl = `https://www.googleapis.com/youtube/v3/search?key=${process.env.YOUTUBE_API_KEY}&channelId=${process.env.YOUTUBE_CHANNEL_ID}&part=snippet,id&order=date&maxResults=3&type=video`;
         const ytRes = await axios.get(ytUrl);
         videos = ytRes.data.items;
@@ -90,15 +86,15 @@ app.get('/youtube', async (req, res) => {
 
 app.get('/admin', async (req, res) => {
     if (!res.locals.isAdmin) {
-        addLog(`Blocked access attempt from ID: ${req.user?.id || 'Unknown'}`);
-        return res.status(403).render('error', { msg: "No Permission" }); // ป้องกันหน้าขาว
+        addLog(`Unauthorized access attempt: ${req.user?.id || 'Guest'}`);
+        return res.status(403).render('error', { msg: "ไม่มีสิทธิ์เข้าถึงหน้าควบคุม" });
     }
     const totalUsers = await User.countDocuments();
     const allUsers = await User.find({});
     const avatarUrl = `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`;
     const configKeys = {
         YT_KEY: process.env.YOUTUBE_API_KEY ? "********" + process.env.YOUTUBE_API_KEY.slice(-4) : "MISSING",
-        DB_URL: "PROTECTED ✅"
+        DB_URL: "CONNECTED ✅"
     };
     res.render('admin', { user: req.user, avatarUrl, totalUsers, allUsers, systemLogs, configKeys });
 });
@@ -107,10 +103,9 @@ app.post('/admin/update-user', async (req, res) => {
     if (!res.locals.isAdmin) return res.status(403).send("No Permission");
     const { userId, level, xp } = req.body;
     await User.findOneAndUpdate({ userId }, { level: Number(level), xp: Number(xp) });
-    addLog(`Admin updated user ${userId} to Lv.${level}`);
+    addLog(`Updated User ${userId} to Lv.${level}`);
     res.redirect('/admin');
 });
 
 app.get('/logout', (req, res) => req.logout(() => res.redirect('/')));
-
-app.listen(port, () => console.log(`🌐 Server active on ${port}`));
+app.listen(port, () => console.log(`🌐 Server running on ${port}`));

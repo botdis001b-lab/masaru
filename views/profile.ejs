@@ -1,21 +1,18 @@
 <!DOCTYPE html>
-<html lang="th">
+<html>
 <head>
-    <meta charset="UTF-8">
     <title>Masaru Profile</title>
     <style>
-        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #23272a; color: white; display: flex; overflow: hidden; }
+        body { margin: 0; font-family: sans-serif; background: #23272a; color: white; display: flex; }
         .sidebar { width: 240px; background: #2c2f33; height: 100vh; position: fixed; border-right: 1px solid #444; }
-        .nav-item { padding: 15px 25px; display: block; color: #b9bbbe; text-decoration: none; transition: 0.2s; }
+        .nav-item { padding: 15px 25px; display: block; color: #b9bbbe; text-decoration: none; }
         .nav-item:hover, .active { background: #3c3f44; color: white; }
-        .main { flex: 1; margin-left: 240px; position: relative; height: 100vh; }
-        .profile-nav { position: absolute; top: 20px; right: 30px; z-index: 1000; }
+        .main { flex: 1; margin-left: 240px; position: relative; }
+        .profile-nav { position: absolute; top: 20px; right: 30px; }
         .mini-avatar { width: 45px; border-radius: 50%; border: 2px solid #5865f2; cursor: pointer; }
-        .dropdown { position: absolute; right: 0; top: 55px; background: #2f3136; padding: 20px; border-radius: 12px; display: none; width: 200px; border: 1px solid #444; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        .dropdown { position: absolute; right: 0; top: 55px; background: #2f3136; padding: 20px; border-radius: 12px; display: none; width: 180px; border: 1px solid #444; }
         .profile-nav:hover .dropdown { display: block; }
-        .stat { display: flex; justify-content: space-between; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; }
     </style>
-    
     <script>
         document.addEventListener('contextmenu', e => e.preventDefault());
         document.onkeydown = function(e) {
@@ -25,12 +22,10 @@
 </head>
 <body>
     <div class="sidebar">
-        <div style="padding: 25px; font-weight: bold; color: #5865f2; font-size: 20px;">MASARU BOT</div>
+        <div style="padding: 25px; font-weight: bold; color: #5865f2;">MASARU BOT</div>
         <a href="/profile" class="nav-item active">🏠 หน้าหลัก</a>
         <a href="/youtube" class="nav-item">🎥 วิดีโอ YouTube</a>
-        <% if (isAdmin) { %>
-            <a href="/admin" class="nav-item" style="color: #f1c40f;">🛠️ ตั้งค่าบอท</a>
-        <% } %>
+        <% if (isAdmin) { %><a href="/admin" class="nav-item" style="color: #f1c40f;">🛠️ ตั้งค่าบอท</a><% } %>
         <a href="/logout" class="nav-item" style="color: #ed4245;">🚪 ออกจากระบบ</a>
     </div>
     <div class="main">
@@ -38,8 +33,9 @@
             <img src="<%= avatarUrl %>" class="mini-avatar">
             <div class="dropdown">
                 <strong><%= user.username %></strong>
-                <div class="stat"><span>Level</span><span style="color: #f1c40f;"><%= userData.level %></span></div>
-                <div class="stat"><span>Total XP</span><span style="color: #5865f2;"><%= userData.xp %></span></div>
+                <hr style="border:0; border-top:1px solid #444;">
+                <p>Level: <%= userData.level %></p>
+                <p>XP: <%= userData.xp %></p>
             </div>
         </div>
     </div>
