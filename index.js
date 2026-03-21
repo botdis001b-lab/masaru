@@ -1,7 +1,7 @@
-const { Client, GatewayIntentBits, ActivityType, Events } = require('discord.js');
+const { Client, GatewayIntentBits, ActivityType, Events, EmbedBuilder } = require('discord.js');
 const mongoose = require('mongoose');
 
-// เชื่อมต่อ DB เพียงครั้งเดียว
+// เชื่อมต่อ Database
 if (mongoose.connection.readyState === 0) {
     mongoose.connect(process.env.MONGO_URL)
         .then(() => console.log('Bot DB Connected! ✅'))
@@ -24,9 +24,31 @@ const client = new Client({
     ]
 });
 
-const CLOCK_CHANNEL_ID = '1483918700976410694';
-const LOG_CHANNEL_ID = '1204742409347534900';
+// ตั้งค่า ID ห้องต้อนรับตามที่พี่แจ้งมา
+const WELCOME_CHANNEL_ID = '1205000338382524416'; 
 
+// --- [ระบบเสริม 1: Welcome Message] ---
+client.on(Events.GuildMemberAdd, async (member) => {
+    try {
+        const channel = await client.channels.fetch(WELCOME_CHANNEL_ID);
+        if (channel) {
+            // สร้างข้อความต้อนรับแบบ Embed ให้ดูสวยงาม
+            const welcomeEmbed = new EmbedBuilder()
+                .setColor('#5865f2')
+                .setTitle('👋 ยินดีต้อนรับสมาชิกใหม่!')
+                .setDescription(`สวัสดีคุณ ${member} ยินดีต้อนรับเข้าสู่เซิร์ฟเวอร์ของเราครับ!\nขอให้สนุกกับการพูดคุยและใช้งานบอทนะครับ`)
+                .setThumbnail(member.user.displayAvatarURL())
+                .addFields({ name: 'สมาชิกคนที่:', value: `${member.guild.memberCount}`, inline: true })
+                .setTimestamp();
+
+            await channel.send({ content: `ยินดีต้อนรับครับ ${member}!`, embeds: [welcomeEmbed] });
+        }
+    } catch (e) {
+        console.error("Welcome Message Error:", e);
+    }
+});
+
+// --- [ระบบนาฬิกา ASCII เดิม] ---
 const asciiDigits = { '0': ["  ████  ", " ██  ██ ", " ██  ██ ", " ██  ██ ", "  ████  "], '1': ["   ██   ", "  ███   ", "   ██   ", "   ██   ", "  ████  "], '2': [" █████  ", "     ██ ", "  █████ ", " ██     ", " ██████ "], '3': [" █████  ", "     ██ ", "  █████ ", "     ██ ", " █████  "], '4': [" ██  ██ ", " ██  ██ ", " ██████ ", "     ██ ", "     ██ "], '5': [" ██████ ", " ██     ", " █████  ", "     ██ ", " █████  "], '6': ["  ████  ", " ██     ", " █████  ", " ██  ██ ", "  ████  "], '7': [" ██████ ", "     ██ ", "    ██  ", "   ██   ", "   ██   "], '8': ["  ████  ", " ██  ██ ", "  ████  ", " ██  ██ ", "  ████  "], '9': ["  ████  ", " ██  ██ ", "  █████ ", "     ██ ", "  ████  "], ':': ["        ", "   ██   ", "        ", "   ██   ", "        "] };
 
 function getClock() {
@@ -39,47 +61,32 @@ function getClock() {
     return "```\n" + lines.join("\n") + "\n```";
 }
 
-// แก้ไขตาม Log: ใช้ Events.ClientReady แทน 'ready'
 client.once(Events.ClientReady, c => {
     console.log(`Ready! Logged in as ${c.user.tag}`);
     client.user.setActivity('Masaru Dashboard', { type: ActivityType.Watching });
-    
-    setInterval(async () => {
-        try {
-            const channel = await client.channels.fetch(CLOCK_CHANNEL_ID);
-            if (channel) {
-                const clockMsg = `🕘 **นาฬิกาดิจิทัล**\n${getClock()}\n📅 ${new Date().toLocaleDateString('th-TH', {timeZone:'Asia/Bangkok'})}`;
-                const messages = await channel.messages.fetch({ limit: 1 });
-                if (messages.first()?.author.id === client.user.id) await messages.first().edit(clockMsg);
-                else await channel.send(clockMsg);
-            }
-        } catch (e) {}
-    }, 10000);
 });
 
-client.on('voiceStateUpdate', async (oldState, newState) => {
-    try {
-        const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
-        if (!logChannel) return;
-        const user = newState.member.user;
-        const time = new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' });
-        if (!oldState.channelId && newState.channelId) {
-            await logChannel.send(`\`\`\`diff\n+ [เข้าห้อง] ${user.username} -> ${newState.channel.name} (${time})\n\`\`\``);
-        } else if (oldState.channelId && !newState.channelId) {
-            await logChannel.send(`\`\`\`diff\n- [ออกห้อง] ${user.username} -> ${oldState.channel.name} (${time})\n\`\`\``);
-        }
-    } catch (e) {}
-});
-
-client.on('messageCreate', async (message) => {
+// --- [ระบบ XP & Level + คำสั่งเสริม] ---
+client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot || !message.guild) return;
+
+    // ระบบเช็กสถานะตัวเอง (Stat)
+    if (message.content === '!stat') {
+        const data = await User.findOne({ userId: message.author.id });
+        if (data) {
+            return message.reply(`📊 **ข้อมูลของคุณ ${message.author.username}**\n⭐ เลเวล: ${data.level}\n✨ XP: ${data.xp}/${data.level * 100}`);
+        }
+    }
+
+    // ระบบเพิ่ม XP ปกติ
     try {
         let data = await User.findOne({ userId: message.author.id });
         if (!data) data = new User({ userId: message.author.id });
+        
         data.xp += 20;
         if (data.xp >= (data.level * 100)) {
             data.level += 1;
-            message.reply(`🎉 Level Up! **${data.level}**`);
+            message.reply(`🎉 ยินดีด้วย! คุณเลเวลอัปเป็นระดับ **${data.level}** แล้ว!`);
         }
         await data.save();
     } catch (e) {}
