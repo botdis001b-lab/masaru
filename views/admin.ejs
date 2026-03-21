@@ -1,7 +1,6 @@
 <!DOCTYPE html>
-<html lang="th">
+<html>
 <head>
-    <meta charset="UTF-8">
     <title>Master Control</title>
     <style>
         body { margin: 0; font-family: sans-serif; background: #1a1c1e; color: white; display: flex; }
@@ -15,7 +14,7 @@
 </head>
 <body>
     <div class="sidebar">
-        <div style="padding: 25px; font-weight: bold; color: #f1c40f; font-size: 20px;">MASTER CONTROL</div>
+        <div style="padding: 25px; font-weight: bold; color: #f1c40f; font-size: 20px;">ADMIN PANEL</div>
         <a href="/profile" style="padding: 15px 25px; display: block; color: white; text-decoration: none;">🏠 กลับหน้าโปรไฟล์</a>
     </div>
     <div class="main">
@@ -24,7 +23,7 @@
                 <h3>👥 จัดการผู้ใช้ (<%= totalUsers %> คน)</h3>
                 <table style="width: 100%; text-align: left;">
                     <tr style="color: #b9bbbe; font-size: 12px; border-bottom: 1px solid #444;">
-                        <th style="padding: 10px;">ID</th><th>Level</th><th>XP</th><th>Action</th>
+                        <th style="padding: 10px;">Discord ID</th><th>Level</th><th>XP</th><th>Action</th>
                     </tr>
                     <% allUsers.forEach(u => { %>
                     <tr style="border-bottom: 1px solid #333;">
@@ -41,18 +40,14 @@
             </div>
             <div>
                 <div class="card" style="border-left: 4px solid #f1c40f;">
-                    <h3>🔑 Configuration Status</h3>
-                    <div style="font-size: 14px;">
-                        <p>YouTube Key: <span style="color: #2ecc71;"><%= configKeys.YT_KEY %></span></p>
-                        <p>Database: <span style="color: #2ecc71;">CONNECTED ✅</span></p>
-                    </div>
+                    <h3>🔑 Configuration</h3>
+                    <p style="font-size: 14px;">YouTube Key: <span style="color: #2ecc71;"><%= configKeys.YT_KEY %></span></p>
+                    <p style="font-size: 14px;">Database: <span style="color: #2ecc71;">CONNECTED ✅</span></p>
                 </div>
                 <div class="card">
                     <h3>📜 System Logs</h3>
                     <div class="log-box">
-                        <% systemLogs.forEach(log => { %>
-                            <div style="margin-bottom: 5px;"><%= log %></div>
-                        <% }) %>
+                        <% systemLogs.forEach(log => { %><div><%= log %></div><% }) %>
                     </div>
                 </div>
             </div>

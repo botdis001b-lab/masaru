@@ -10,9 +10,7 @@ const crypto = require('crypto');
 
 const app = express();
 const port = process.env.PORT || 8080;
-
-// ตรวจสอบ ID นี้ให้ตรงกับ Discord ID ของพี่นะครับ
-const ADMIN_ID = '550122613087666177'; 
+const ADMIN_ID = '550122613087666177'; // ID ของพี่ที่ส่งมา
 
 let systemLogs = [];
 const addLog = (msg) => {
@@ -55,8 +53,9 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Middleware เช็คสิทธิ์ Admin แบบบังคับ String
 app.use((req, res, next) => {
-    res.locals.isAdmin = req.isAuthenticated() && req.user.id === ADMIN_ID;
+    res.locals.isAdmin = req.isAuthenticated() && String(req.user.id) === String(ADMIN_ID);
     next();
 });
 
@@ -85,8 +84,9 @@ app.get('/youtube', async (req, res) => {
 });
 
 app.get('/admin', async (req, res) => {
+    // เช็คสิทธิ์ซ้ำอีกรอบเพื่อความชัวร์
     if (!res.locals.isAdmin) {
-        addLog(`Unauthorized access attempt: ${req.user?.id || 'Guest'}`);
+        addLog(`Unauthorized access attempt: ${req.user?.username || 'Guest'} (ID: ${req.user?.id})`);
         return res.status(403).render('error', { msg: "ไม่มีสิทธิ์เข้าถึงหน้าควบคุม" });
     }
     const totalUsers = await User.countDocuments();
@@ -103,7 +103,7 @@ app.post('/admin/update-user', async (req, res) => {
     if (!res.locals.isAdmin) return res.status(403).send("No Permission");
     const { userId, level, xp } = req.body;
     await User.findOneAndUpdate({ userId }, { level: Number(level), xp: Number(xp) });
-    addLog(`Updated User ${userId} to Lv.${level}`);
+    addLog(`Updated User ${userId} -> Lv.${level}, XP.${xp}`);
     res.redirect('/admin');
 });
 
