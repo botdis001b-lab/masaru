@@ -6,12 +6,12 @@ const DiscordStrategy = require('passport-discord').Strategy;
 const mongoose = require('mongoose');
 const path = require('path');
 const axios = require('axios');
-const crypto = require('crypto');
 
 const app = express();
 const port = process.env.PORT || 8080;
-const ADMIN_ID = '550122613087666177'; // ID ของพี่ที่ส่งมา
+const ADMIN_ID = '550122613087666177'; // ID ของพี่
 
+// ระบบ Log ภายใน
 let systemLogs = [];
 const addLog = (msg) => {
     const time = new Date().toLocaleString('th-TH');
@@ -22,8 +22,9 @@ const addLog = (msg) => {
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
-app.set('trust proxy', 1);
+app.set('trust proxy', 1); // สำคัญสำหรับการรันบน Railway
 
+// เชื่อมต่อ Web DB
 mongoose.connect(process.env.MONGO_URL).then(() => {
     addLog("Database Connected Successfully");
 }).catch(err => console.error("DB Error:", err));
@@ -42,18 +43,28 @@ passport.use(new DiscordStrategy({
     scope: ['identify']
 }, (accessToken, refreshToken, profile, done) => done(null, profile)));
 
+// --- แก้ไขจุดที่ทำให้ Login หลุด (Session Configuration) ---
 app.use(session({
-    secret: crypto.randomBytes(32).toString('hex'),
+    // เปลี่ยนจาก crypto.random เป็นค่าคงที่เพื่อให้ Session ไม่ตายเมื่อ Restart Server
+    secret: 'MasaruBot_Permanent_Secret_Key_2026', 
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({ mongoUrl: process.env.MONGO_URL }),
-    cookie: { secure: true, httpOnly: true, sameSite: 'strict', maxAge: 1000 * 60 * 60 * 24 * 7 }
+    store: MongoStore.create({ 
+        mongoUrl: process.env.MONGO_URL,
+        ttl: 14 * 24 * 60 * 60 // เก็บ Session ไว้ใน DB นาน 14 วัน
+    }),
+    cookie: { 
+        secure: true, 
+        httpOnly: true, 
+        sameSite: 'strict', 
+        maxAge: 1000 * 60 * 60 * 24 * 14 // อายุ Cookie 14 วัน
+    }
 }));
 
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Middleware เช็คสิทธิ์ Admin แบบบังคับ String
+// Middleware เช็คสิทธิ์ Admin แบบบังคับ String เพื่อความแม่นยำ
 app.use((req, res, next) => {
     res.locals.isAdmin = req.isAuthenticated() && String(req.user.id) === String(ADMIN_ID);
     next();
@@ -71,32 +82,24 @@ app.get('/profile', async (req, res) => {
     res.render('profile', { user: req.user, userData, avatarUrl });
 });
 
-app.get('/youtube', async (req, res) => {
-    if (!req.isAuthenticated()) return res.redirect('/');
-    let videos = [];
-    try {
-        const ytUrl = `https://www.googleapis.com/youtube/v3/search?key=${process.env.YOUTUBE_API_KEY}&channelId=${process.env.YOUTUBE_CHANNEL_ID}&part=snippet,id&order=date&maxResults=3&type=video`;
-        const ytRes = await axios.get(ytUrl);
-        videos = ytRes.data.items;
-    } catch (e) { addLog("YouTube API Error"); }
-    const avatarUrl = `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`;
-    res.render('youtube', { user: req.user, avatarUrl, videos });
-});
-
 app.get('/admin', async (req, res) => {
-    // เช็คสิทธิ์ซ้ำอีกรอบเพื่อความชัวร์
+    // เช็คสิทธิ์ผ่าน Middleware res.locals.isAdmin
     if (!res.locals.isAdmin) {
-        addLog(`Unauthorized access attempt: ${req.user?.username || 'Guest'} (ID: ${req.user?.id})`);
+        addLog(`Blocked access attempt from ID: ${req.user?.id || 'Unknown'}`);
         return res.status(403).render('error', { msg: "ไม่มีสิทธิ์เข้าถึงหน้าควบคุม" });
     }
-    const totalUsers = await User.countDocuments();
-    const allUsers = await User.find({});
-    const avatarUrl = `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`;
-    const configKeys = {
-        YT_KEY: process.env.YOUTUBE_API_KEY ? "********" + process.env.YOUTUBE_API_KEY.slice(-4) : "MISSING",
-        DB_URL: "CONNECTED ✅"
-    };
-    res.render('admin', { user: req.user, avatarUrl, totalUsers, allUsers, systemLogs, configKeys });
+    try {
+        const totalUsers = await User.countDocuments();
+        const allUsers = await User.find({});
+        const avatarUrl = `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`;
+        const configKeys = {
+            YT_KEY: process.env.YOUTUBE_API_KEY ? "********" + process.env.YOUTUBE_API_KEY.slice(-4) : "MISSING",
+            DB_URL: "CONNECTED ✅"
+        };
+        res.render('admin', { user: req.user, avatarUrl, totalUsers, allUsers, systemLogs, configKeys });
+    } catch (err) {
+        res.status(500).send("Admin Page Error");
+    }
 });
 
 app.post('/admin/update-user', async (req, res) => {
@@ -107,5 +110,10 @@ app.post('/admin/update-user', async (req, res) => {
     res.redirect('/admin');
 });
 
-app.get('/logout', (req, res) => req.logout(() => res.redirect('/')));
-app.listen(port, () => console.log(`🌐 Server running on ${port}`));
+app.get('/logout', (req, res) => {
+    req.logout(() => {
+        res.redirect('/');
+    });
+});
+
+app.listen(port, () => console.log(`🌐 Server running on port ${port}`));
