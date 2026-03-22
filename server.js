@@ -22,9 +22,27 @@ const addLog = (msg) => {
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
-app.set('trust proxy', 1); // สำคัญสำหรับการรันบน Railway
 
-// เชื่อมต่อ Web DB
+// --- ส่วนที่ 1: การตั้งค่า Proxy และ Session (แก้ปัญหา Login Loop) ---
+app.set('trust proxy', 1); // บังคับใช้เพราะ Railway อยู่หลัง Reverse Proxy
+
+app.use(session({
+    secret: 'MasaruBot_Permanent_Secret_Key_2026', 
+    resave: true, // เปลี่ยนเป็น true เพื่อให้ Session มีการอัปเดตตลอด
+    saveUninitialized: false,
+    store: MongoStore.create({ 
+        mongoUrl: process.env.MONGO_URL,
+        ttl: 14 * 24 * 60 * 60 
+    }),
+    cookie: { 
+        secure: true, // ต้องเป็น true เมื่อรันบน https ของ Railway
+        httpOnly: true,
+        sameSite: 'lax', // เปลี่ยนจาก strict เป็น lax เพื่อให้ Browser ยอมรับ Cookie หลังกลับจาก Discord
+        maxAge: 1000 * 60 * 60 * 24 * 14 
+    }
+}));
+
+// --- ส่วนที่ 2: เชื่อมต่อ Database ---
 mongoose.connect(process.env.MONGO_URL).then(() => {
     addLog("Database Connected Successfully");
 }).catch(err => console.error("DB Error:", err));
@@ -41,51 +59,56 @@ passport.use(new DiscordStrategy({
     clientSecret: process.env.DISCORD_CLIENT_SECRET,
     callbackURL: process.env.CALLBACK_URL,
     scope: ['identify']
-}, (accessToken, refreshToken, profile, done) => done(null, profile)));
-
-// --- แก้ไขจุดที่ทำให้ Login หลุด (Session Configuration) ---
-app.use(session({
-    // เปลี่ยนจาก crypto.random เป็นค่าคงที่เพื่อให้ Session ไม่ตายเมื่อ Restart Server
-    secret: 'MasaruBot_Permanent_Secret_Key_2026', 
-    resave: false,
-    saveUninitialized: false,
-    store: MongoStore.create({ 
-        mongoUrl: process.env.MONGO_URL,
-        ttl: 14 * 24 * 60 * 60 // เก็บ Session ไว้ใน DB นาน 14 วัน
-    }),
-    cookie: { 
-        secure: true, 
-        httpOnly: true, 
-        sameSite: 'strict', 
-        maxAge: 1000 * 60 * 60 * 24 * 14 // อายุ Cookie 14 วัน
-    }
+}, (accessToken, refreshToken, profile, done) => {
+    console.log(`[Login] Attempt from ${profile.username} (${profile.id})`);
+    return done(null, profile);
 }));
 
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Middleware เช็คสิทธิ์ Admin แบบบังคับ String เพื่อความแม่นยำ
+// Middleware เช็คสิทธิ์ Admin
 app.use((req, res, next) => {
     res.locals.isAdmin = req.isAuthenticated() && String(req.user.id) === String(ADMIN_ID);
     next();
 });
 
-// --- ROUTES ---
-app.get('/', (req, res) => req.isAuthenticated() ? res.redirect('/profile') : res.render('login'));
+// --- ส่วนที่ 3: Routes (ปรับปรุงการ Redirect) ---
+app.get('/', (req, res) => {
+    if (req.isAuthenticated()) return res.redirect('/profile');
+    res.render('login');
+});
+
 app.get('/login', passport.authenticate('discord'));
-app.get('/auth/discord/callback', passport.authenticate('discord', { failureRedirect: '/' }), (req, res) => res.redirect('/profile'));
+
+app.get('/auth/discord/callback', 
+    passport.authenticate('discord', { failureRedirect: '/' }), 
+    (req, res) => {
+        // บังคับเซฟ Session ก่อนจะเปลี่ยนหน้า เพื่อป้องกันข้อมูลหายระหว่างทาง
+        req.session.save((err) => {
+            if (err) {
+                console.error("Session Save Error:", err);
+                return res.redirect('/');
+            }
+            res.redirect('/profile');
+        });
+    }
+);
 
 app.get('/profile', async (req, res) => {
     if (!req.isAuthenticated()) return res.redirect('/');
-    const userData = await User.findOne({ userId: req.user.id }) || await User.create({ userId: req.user.id });
-    const avatarUrl = `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`;
-    res.render('profile', { user: req.user, userData, avatarUrl });
+    try {
+        const userData = await User.findOne({ userId: req.user.id }) || await User.create({ userId: req.user.id });
+        const avatarUrl = `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`;
+        res.render('profile', { user: req.user, userData, avatarUrl });
+    } catch (err) {
+        res.redirect('/');
+    }
 });
 
 app.get('/admin', async (req, res) => {
-    // เช็คสิทธิ์ผ่าน Middleware res.locals.isAdmin
     if (!res.locals.isAdmin) {
-        addLog(`Blocked access attempt from ID: ${req.user?.id || 'Unknown'}`);
+        addLog(`Access Denied: ${req.user?.username || 'Unknown'} (${req.user?.id || 'N/A'})`);
         return res.status(403).render('error', { msg: "ไม่มีสิทธิ์เข้าถึงหน้าควบคุม" });
     }
     try {
@@ -112,6 +135,7 @@ app.post('/admin/update-user', async (req, res) => {
 
 app.get('/logout', (req, res) => {
     req.logout(() => {
+        req.session.destroy(); // ล้าง Session ทั้งหมดเมื่อออก
         res.redirect('/');
     });
 });
