@@ -1,7 +1,8 @@
+require('./media-tracker.js'); // <--- เพิ่มบรรทัดนี้เพื่อดึงระบบติดตามอนิเมะ/หนังมาทำงาน
 const { Client, GatewayIntentBits, ActivityType, Events, EmbedBuilder } = require('discord.js');
 const mongoose = require('mongoose');
 
-// เชื่อมต่อ Database
+// --- [ระบบเก่า: เชื่อมต่อ Database] ---
 if (mongoose.connection.readyState === 0) {
     mongoose.connect(process.env.MONGO_URL)
         .then(() => console.log('Bot DB Connected! ✅'))
@@ -20,15 +21,15 @@ const client = new Client({
         GatewayIntentBits.GuildMessages, 
         GatewayIntentBits.MessageContent, 
         GatewayIntentBits.GuildMembers, 
-        GatewayIntentBits.GuildVoiceStates // ต้องมีตัวนี้เพื่อตรวจจับห้องเสียง
+        GatewayIntentBits.GuildVoiceStates // ระบบเก่า: ต้องมีเพื่อตรวจจับห้องเสียง
     ]
 });
 
-// ตั้งค่า ID ห้องต่างๆ
-const WELCOME_CHANNEL_ID = '1205000338382524416'; // ห้องต้อนรับ
-const LOG_CHANNEL_ID = '1204742409347534900';     // ห้อง Log เสียง
+// ระบบเก่า: ตั้งค่า ID ห้องต่างๆ
+const WELCOME_CHANNEL_ID = '1205000338382524416'; 
+const LOG_CHANNEL_ID = '1204742409347534900';     
 
-// --- [ระบบ 1: Welcome Message] ---
+// --- [ระบบเก่า 1: Welcome Message] ---
 client.on(Events.GuildMemberAdd, async (member) => {
     try {
         const channel = await client.channels.fetch(WELCOME_CHANNEL_ID);
@@ -44,7 +45,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
     } catch (e) { console.error("Welcome Error:", e); }
 });
 
-// --- [ระบบ 2: Voice Log (อันที่หายไป)] ---
+// --- [ระบบเก่า 2: Voice Log (คนเข้า-ออกห้องเสียง)] ---
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     try {
         const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
@@ -61,31 +62,21 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     } catch (e) { console.error("Voice Log Error:", e); }
 });
 
-// --- [ระบบ 3: นาฬิกา ASCII] ---
+// --- [ระบบเก่า 3: นาฬิกา ASCII] ---
 const asciiDigits = { '0': ["  ████  ", " ██  ██ ", " ██  ██ ", " ██  ██ ", "  ████  "], '1': ["   ██   ", "  ███   ", "   ██   ", "   ██   ", "  ████  "], '2': [" █████  ", "     ██ ", "  █████ ", " ██     ", " ██████ "], '3': [" █████  ", "     ██ ", "  █████ ", "     ██ ", " █████  "], '4': [" ██  ██ ", " ██  ██ ", " ██████ ", "     ██ ", "     ██ "], '5': [" ██████ ", " ██     ", " █████  ", "     ██ ", " █████  "], '6': ["  ████  ", " ██     ", " █████  ", " ██  ██ ", "  ████  "], '7': [" ██████ ", "     ██ ", "    ██  ", "   ██   ", "   ██   "], '8': ["  ████  ", " ██  ██ ", "  ████  ", " ██  ██ ", "  ████  "], '9': ["  ████  ", " ██  ██ ", "  █████ ", "     ██ ", "  ████  "], ':': ["        ", "   ██   ", "        ", "   ██   ", "        "] };
-
-function getClock() {
-    const time = new Date().toLocaleTimeString('en-US', {timeZone: 'Asia/Bangkok', hour12: false});
-    let lines = ["", "", "", "", ""];
-    for (const char of time) {
-        const digit = asciiDigits[char] || asciiDigits[':'];
-        for (let i = 0; i < 5; i++) lines[i] += digit[i] + " ";
-    }
-    return "```\n" + lines.join("\n") + "\n```";
-}
 
 client.once(Events.ClientReady, c => {
     console.log(`Ready! Logged in as ${c.user.tag}`);
     client.user.setActivity('Masaru Dashboard', { type: ActivityType.Watching });
 });
 
-// --- [ระบบ 4: XP & Level + !stat] ---
+// --- [ระบบเก่า 4: XP & Level + !stat] ---
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot || !message.guild) return;
 
     if (message.content === '!stat') {
         const data = await User.findOne({ userId: message.author.id });
-        if (data) return message.reply(`📊 **สถานะของคุณ ${message.author.username}**\n⭐ เลเวล: ${data.level}\n✨ XP: ${data.xp}/${data.level * 100}`);
+        if (data) return message.reply(`📊 **ข้อมูลของคุณ ${message.author.username}**\n⭐ เลเวล: ${data.level}\n✨ XP: ${data.xp}/${data.level * 100}`);
     }
 
     try {
