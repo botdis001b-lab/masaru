@@ -20,35 +20,48 @@ const client = new Client({
         GatewayIntentBits.GuildMessages, 
         GatewayIntentBits.MessageContent, 
         GatewayIntentBits.GuildMembers, 
-        GatewayIntentBits.GuildVoiceStates
+        GatewayIntentBits.GuildVoiceStates // ต้องมีตัวนี้เพื่อตรวจจับห้องเสียง
     ]
 });
 
-// ตั้งค่า ID ห้องต้อนรับตามที่พี่แจ้งมา
-const WELCOME_CHANNEL_ID = '1205000338382524416'; 
+// ตั้งค่า ID ห้องต่างๆ
+const WELCOME_CHANNEL_ID = '1205000338382524416'; // ห้องต้อนรับ
+const LOG_CHANNEL_ID = '1204742409347534900';     // ห้อง Log เสียง
 
-// --- [ระบบเสริม 1: Welcome Message] ---
+// --- [ระบบ 1: Welcome Message] ---
 client.on(Events.GuildMemberAdd, async (member) => {
     try {
         const channel = await client.channels.fetch(WELCOME_CHANNEL_ID);
         if (channel) {
-            // สร้างข้อความต้อนรับแบบ Embed ให้ดูสวยงาม
             const welcomeEmbed = new EmbedBuilder()
                 .setColor('#5865f2')
                 .setTitle('👋 ยินดีต้อนรับสมาชิกใหม่!')
-                .setDescription(`สวัสดีคุณ ${member} ยินดีต้อนรับเข้าสู่เซิร์ฟเวอร์ของเราครับ!\nขอให้สนุกกับการพูดคุยและใช้งานบอทนะครับ`)
+                .setDescription(`สวัสดีคุณ ${member} ยินดีต้อนรับเข้าสู่เซิร์ฟเวอร์!\nสมาชิกคนที่: **${member.guild.memberCount}**`)
                 .setThumbnail(member.user.displayAvatarURL())
-                .addFields({ name: 'สมาชิกคนที่:', value: `${member.guild.memberCount}`, inline: true })
                 .setTimestamp();
-
-            await channel.send({ content: `ยินดีต้อนรับครับ ${member}!`, embeds: [welcomeEmbed] });
+            await channel.send({ embeds: [welcomeEmbed] });
         }
-    } catch (e) {
-        console.error("Welcome Message Error:", e);
-    }
+    } catch (e) { console.error("Welcome Error:", e); }
 });
 
-// --- [ระบบนาฬิกา ASCII เดิม] ---
+// --- [ระบบ 2: Voice Log (อันที่หายไป)] ---
+client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
+    try {
+        const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+        if (!logChannel) return;
+
+        const user = newState.member.user;
+        const time = new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' });
+
+        if (!oldState.channelId && newState.channelId) {
+            await logChannel.send(`\`\`\`diff\n+ [เข้าห้อง] ${user.username} -> ${newState.channel.name} (${time})\n\`\`\``);
+        } else if (oldState.channelId && !newState.channelId) {
+            await logChannel.send(`\`\`\`diff\n- [ออกห้อง] ${user.username} -> ${oldState.channel.name} (${time})\n\`\`\``);
+        }
+    } catch (e) { console.error("Voice Log Error:", e); }
+});
+
+// --- [ระบบ 3: นาฬิกา ASCII] ---
 const asciiDigits = { '0': ["  ████  ", " ██  ██ ", " ██  ██ ", " ██  ██ ", "  ████  "], '1': ["   ██   ", "  ███   ", "   ██   ", "   ██   ", "  ████  "], '2': [" █████  ", "     ██ ", "  █████ ", " ██     ", " ██████ "], '3': [" █████  ", "     ██ ", "  █████ ", "     ██ ", " █████  "], '4': [" ██  ██ ", " ██  ██ ", " ██████ ", "     ██ ", "     ██ "], '5': [" ██████ ", " ██     ", " █████  ", "     ██ ", " █████  "], '6': ["  ████  ", " ██     ", " █████  ", " ██  ██ ", "  ████  "], '7': [" ██████ ", "     ██ ", "    ██  ", "   ██   ", "   ██   "], '8': ["  ████  ", " ██  ██ ", "  ████  ", " ██  ██ ", "  ████  "], '9': ["  ████  ", " ██  ██ ", "  █████ ", "     ██ ", "  ████  "], ':': ["        ", "   ██   ", "        ", "   ██   ", "        "] };
 
 function getClock() {
@@ -66,27 +79,22 @@ client.once(Events.ClientReady, c => {
     client.user.setActivity('Masaru Dashboard', { type: ActivityType.Watching });
 });
 
-// --- [ระบบ XP & Level + คำสั่งเสริม] ---
+// --- [ระบบ 4: XP & Level + !stat] ---
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot || !message.guild) return;
 
-    // ระบบเช็กสถานะตัวเอง (Stat)
     if (message.content === '!stat') {
         const data = await User.findOne({ userId: message.author.id });
-        if (data) {
-            return message.reply(`📊 **ข้อมูลของคุณ ${message.author.username}**\n⭐ เลเวล: ${data.level}\n✨ XP: ${data.xp}/${data.level * 100}`);
-        }
+        if (data) return message.reply(`📊 **สถานะของคุณ ${message.author.username}**\n⭐ เลเวล: ${data.level}\n✨ XP: ${data.xp}/${data.level * 100}`);
     }
 
-    // ระบบเพิ่ม XP ปกติ
     try {
         let data = await User.findOne({ userId: message.author.id });
         if (!data) data = new User({ userId: message.author.id });
-        
         data.xp += 20;
         if (data.xp >= (data.level * 100)) {
             data.level += 1;
-            message.reply(`🎉 ยินดีด้วย! คุณเลเวลอัปเป็นระดับ **${data.level}** แล้ว!`);
+            message.reply(`🎉 ยินดีด้วย! เลเวลอัปเป็น **${data.level}**!`);
         }
         await data.save();
     } catch (e) {}
