@@ -1,14 +1,16 @@
-require('./media-tracker.js'); // <--- เพิ่มบรรทัดนี้เพื่อดึงระบบติดตามอนิเมะ/หนังมาทำงาน
+require('./media-tracker.js'); // รันระบบติดตามอนิเมะ/หนัง
+require('./member-management.js'); // รันระบบเช็กคนหาย 10 วัน และปุ่มรับยศ
 const { Client, GatewayIntentBits, ActivityType, Events, EmbedBuilder } = require('discord.js');
 const mongoose = require('mongoose');
 
-// --- [ระบบเก่า: เชื่อมต่อ Database] ---
+// --- [ส่วนที่ 1: เชื่อมต่อ Database] ---
 if (mongoose.connection.readyState === 0) {
     mongoose.connect(process.env.MONGO_URL)
         .then(() => console.log('Bot DB Connected! ✅'))
         .catch(err => console.error('DB Error:', err));
 }
 
+// Schema สำหรับระบบ XP
 const User = mongoose.models.User || mongoose.model('User', new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     xp: { type: Number, default: 0 },
@@ -21,15 +23,18 @@ const client = new Client({
         GatewayIntentBits.GuildMessages, 
         GatewayIntentBits.MessageContent, 
         GatewayIntentBits.GuildMembers, 
-        GatewayIntentBits.GuildVoiceStates // ระบบเก่า: ต้องมีเพื่อตรวจจับห้องเสียง
+        GatewayIntentBits.GuildVoiceStates // จำเป็นสำหรับ Voice Log และระบบเช็กคนหาย
     ]
 });
 
-// ระบบเก่า: ตั้งค่า ID ห้องต่างๆ
+// ส่งออก client เพื่อให้ไฟล์อื่น (เช่น member-management.js) เรียกใช้ได้
+module.exports = { client }; 
+
+// ตั้งค่า ID ห้องต่างๆ
 const WELCOME_CHANNEL_ID = '1205000338382524416'; 
 const LOG_CHANNEL_ID = '1204742409347534900';     
 
-// --- [ระบบเก่า 1: Welcome Message] ---
+// --- [ระบบ 1: Welcome Message] ---
 client.on(Events.GuildMemberAdd, async (member) => {
     try {
         const channel = await client.channels.fetch(WELCOME_CHANNEL_ID);
@@ -45,7 +50,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
     } catch (e) { console.error("Welcome Error:", e); }
 });
 
-// --- [ระบบเก่า 2: Voice Log (คนเข้า-ออกห้องเสียง)] ---
+// --- [ระบบ 2: Voice Log (คนเข้า-ออกห้องเสียง)] ---
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     try {
         const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
@@ -62,7 +67,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     } catch (e) { console.error("Voice Log Error:", e); }
 });
 
-// --- [ระบบเก่า 3: นาฬิกา ASCII] ---
+// --- [ระบบ 3: นาฬิกา ASCII] ---
 const asciiDigits = { '0': ["  ████  ", " ██  ██ ", " ██  ██ ", " ██  ██ ", "  ████  "], '1': ["   ██   ", "  ███   ", "   ██   ", "   ██   ", "  ████  "], '2': [" █████  ", "     ██ ", "  █████ ", " ██     ", " ██████ "], '3': [" █████  ", "     ██ ", "  █████ ", "     ██ ", " █████  "], '4': [" ██  ██ ", " ██  ██ ", " ██████ ", "     ██ ", "     ██ "], '5': [" ██████ ", " ██     ", " █████  ", "     ██ ", " █████  "], '6': ["  ████  ", " ██     ", " █████  ", " ██  ██ ", "  ████  "], '7': [" ██████ ", "     ██ ", "    ██  ", "   ██   ", "   ██   "], '8': ["  ████  ", " ██  ██ ", "  ████  ", " ██  ██ ", "  ████  "], '9': ["  ████  ", " ██  ██ ", "  █████ ", "     ██ ", "  ████  "], ':': ["        ", "   ██   ", "        ", "   ██   ", "        "] };
 
 client.once(Events.ClientReady, c => {
@@ -70,7 +75,7 @@ client.once(Events.ClientReady, c => {
     client.user.setActivity('Masaru Dashboard', { type: ActivityType.Watching });
 });
 
-// --- [ระบบเก่า 4: XP & Level + !stat] ---
+// --- [ระบบ 4: XP & Level + !stat] ---
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot || !message.guild) return;
 
