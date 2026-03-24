@@ -20,19 +20,19 @@ const client = new Client({
         GatewayIntentBits.GuildMessages, 
         GatewayIntentBits.MessageContent, 
         GatewayIntentBits.GuildMembers, 
-        GatewayIntentBits.GuildVoiceStates
+        GatewayIntentBits.GuildVoiceStates // จำเป็นสำหรับ Voice Log และเช็กคนหาย
     ]
 });
 
+// ส่งออก client เพื่อให้ member-management.js นำไปใช้งานได้
+module.exports = { client };
+
 // --- [2. โหลดระบบแยก] ---
-// โหลด Media Tracker (ใช้ Webhook แยกอยู่แล้วจึงไม่มีปัญหา)
-require('./media-tracker.js'); 
-
-// โหลดระบบจัดการสมาชิก โดยส่ง client เข้าไปทำงานด้วย
+require('./media-tracker.js'); // ระบบแจ้งเตือนหนัง/อนิเมะ
 const { initMemberManagement } = require('./member-management.js');
-initMemberManagement(client);
+initMemberManagement(client); // รันระบบรับยศและเช็กคนหาย
 
-// --- [3. ระบบเดิม: Welcome & Voice Log] ---
+// --- [3. ระบบ Welcome & Voice Log] ---
 const WELCOME_CHANNEL_ID = '1205000338382524416'; 
 const LOG_CHANNEL_ID = '1204742409347534900';     
 
@@ -43,7 +43,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
             const welcomeEmbed = new EmbedBuilder()
                 .setColor('#5865f2')
                 .setTitle('👋 ยินดีต้อนรับสมาชิกใหม่!')
-                .setDescription(`สวัสดีคุณ ${member} เข้าสู่เซิร์ฟเวอร์!\nสมาชิกคนที่: **${member.guild.memberCount}**`)
+                .setDescription(`สวัสดีคุณ ${member} ยินดีต้อนรับเข้าสู่เซิร์ฟเวอร์!\nสมาชิกคนที่: **${member.guild.memberCount}**`)
                 .setThumbnail(member.user.displayAvatarURL())
                 .setTimestamp();
             await channel.send({ embeds: [welcomeEmbed] });
@@ -70,7 +70,7 @@ client.once(Events.ClientReady, c => {
     client.user.setActivity('Masaru Dashboard', { type: ActivityType.Watching });
 });
 
-// --- [4. ระบบ XP] ---
+// --- [4. ระบบ XP & Level] ---
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot || !message.guild) return;
     if (message.content === '!stat') {
