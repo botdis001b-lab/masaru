@@ -8,6 +8,7 @@ if (mongoose.connection.readyState === 0) {
         .catch(err => console.error('DB Error:', err));
 }
 
+// Schema สำหรับระบบ XP
 const User = mongoose.models.User || mongoose.model('User', new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     xp: { type: Number, default: 0 },
@@ -20,37 +21,39 @@ const client = new Client({
         GatewayIntentBits.GuildMessages, 
         GatewayIntentBits.MessageContent, 
         GatewayIntentBits.GuildMembers, 
-        GatewayIntentBits.GuildVoiceStates // จำเป็นสำหรับ Voice Log และเช็กคนหาย
+        GatewayIntentBits.GuildVoiceStates // จำเป็นสำหรับ Log เสียงและเช็กคนหาย
     ]
 });
 
-// ส่งออก client เพื่อให้ member-management.js นำไปใช้งานได้
-module.exports = { client };
+module.exports = { client }; // ส่งออก client ให้ไฟล์อื่นใช้งาน
 
 // --- [2. โหลดระบบแยก] ---
 require('./media-tracker.js'); // ระบบแจ้งเตือนหนัง/อนิเมะ
 const { initMemberManagement } = require('./member-management.js');
-initMemberManagement(client); // รันระบบรับยศและเช็กคนหาย
+initMemberManagement(client); // ระบบรับยศและเช็กคนหาย 10 วัน
 
-// --- [3. ระบบ Welcome & Voice Log] ---
+// --- [3. ตั้งค่า ID ห้องและระบบเก่า] ---
 const WELCOME_CHANNEL_ID = '1205000338382524416'; 
 const LOG_CHANNEL_ID = '1204742409347534900';     
+const CLOCK_CHANNEL_ID = '1204742409347534900'; // ID ห้อง #วัน-เวลา
 
+// ระบบ Welcome
 client.on(Events.GuildMemberAdd, async (member) => {
     try {
         const channel = await client.channels.fetch(WELCOME_CHANNEL_ID);
         if (channel) {
-            const welcomeEmbed = new EmbedBuilder()
+            const embed = new EmbedBuilder()
                 .setColor('#5865f2')
                 .setTitle('👋 ยินดีต้อนรับสมาชิกใหม่!')
-                .setDescription(`สวัสดีคุณ ${member} ยินดีต้อนรับเข้าสู่เซิร์ฟเวอร์!\nสมาชิกคนที่: **${member.guild.memberCount}**`)
+                .setDescription(`สวัสดีคุณ ${member} เข้าสู่เซิร์ฟเวอร์!\nสมาชิกคนที่: **${member.guild.memberCount}**`)
                 .setThumbnail(member.user.displayAvatarURL())
                 .setTimestamp();
-            await channel.send({ embeds: [welcomeEmbed] });
+            await channel.send({ embeds: [embed] });
         }
     } catch (e) { console.error("Welcome Error:", e); }
 });
 
+// ระบบ Voice Log
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     try {
         const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
@@ -65,12 +68,37 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     } catch (e) { console.error("Voice Log Error:", e); }
 });
 
-client.once(Events.ClientReady, c => {
+// --- [4. ระบบนาฬิกา ASCII] ---
+const asciiDigits = { '0': ["  ████  ", " ██  ██ ", " ██  ██ ", " ██  ██ ", "  ████  "], '1': ["   ██   ", "  ███   ", "   ██   ", "   ██   ", "  ████  "], '2': [" █████  ", "     ██ ", "  █████ ", " ██     ", " ██████ "], '3': [" █████  ", "     ██ ", "  █████ ", "     ██ ", " █████  "], '4': [" ██  ██ ", " ██  ██ ", " ██████ ", "     ██ ", "     ██ "], '5': [" ██████ ", " ██     ", " █████  ", "     ██ ", " █████  "], '6': ["  ████  ", " ██     ", " █████  ", " ██  ██ ", "  ████  "], '7': [" ██████ ", "     ██ ", "    ██  ", "   ██   ", "   ██   "], '8': ["  ████  ", " ██  ██ ", "  ████  ", " ██  ██ ", "  ████  "], '9': ["  ████  ", " ██  ██ ", "  █████ ", "     ██ ", "  ████  "], ':': ["        ", "   ██   ", "        ", "   ██   ", "        "] };
+
+function getClockText() {
+    const time = new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour12: false, hour: '2-digit', minute: '2-digit' });
+    let lines = ["", "", "", "", ""];
+    for (const char of time) {
+        const digit = asciiDigits[char] || asciiDigits[':'];
+        for (let i = 0; i < 5; i++) lines[i] += digit[i] + " ";
+    }
+    return "```\n" + lines.join("\n") + "\n```";
+}
+
+client.once(Events.ClientReady, async (c) => {
     console.log(`Ready! Logged in as ${c.user.tag}`);
     client.user.setActivity('Masaru Dashboard', { type: ActivityType.Watching });
+
+    // รันนาฬิกาทุก 1 นาที
+    setInterval(async () => {
+        const channel = await client.channels.fetch(CLOCK_CHANNEL_ID).catch(() => null);
+        if (channel) {
+            const messages = await channel.messages.fetch({ limit: 5 });
+            const botMsg = messages.find(m => m.author.id === client.user.id);
+            const content = `🕒 **นาฬิกาดิจิทัล**\n${getClockText()}\n📅 ${new Date().toLocaleDateString('th-TH', { dateStyle: 'long' })}`;
+            if (botMsg) await botMsg.edit(content);
+            else await channel.send(content);
+        }
+    }, 60000);
 });
 
-// --- [4. ระบบ XP & Level] ---
+// ระบบ XP
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot || !message.guild) return;
     if (message.content === '!stat') {
