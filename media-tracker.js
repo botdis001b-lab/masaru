@@ -1,69 +1,79 @@
 const axios = require('axios');
 const { EmbedBuilder, WebhookClient } = require('discord.js');
 
-// --- ตั้งค่าระบบจากข้อมูลที่พี่ให้มา ---
+// --- ---
 const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1485252106452729858/rF60dmJULHOVkj1tyvgFYb0B1clkGeOleummgwIjZ6tZACVCmu8X9E9vKEzndAw7ljwv';
 const TMDB_API_KEY = '6e221ecb803f5cfcf59b3f9527ecd9f7';
 const webhook = new WebhookClient({ url: DISCORD_WEBHOOK_URL });
 
-// ฟังก์ชันส่งข้อความเข้า Discord
-async function sendNotification(title, description, imageUrl, color = '#ff5722') {
-    const embed = new EmbedBuilder()
+// --- ---
+function createMediaEmbed(item, type = 'movie') {
+    const title = item.title || item.name;
+    const date = item.release_date || item.first_air_date;
+    const posterURL = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null;
+    const backdropURL = item.backdrop_path ? `https://image.tmdb.org/t/p/w780${item.backdrop_path}` : posterURL;
+
+    // เลือกสีตามประเภท
+    const color = type === 'movie' ? '#ffcc00' : '#00ff99'; // หนังสีเหลือง / อนิเมะ-ซีรีส์สีเขียว
+    const icon = type === 'movie' ? '🎬' : '📺';
+
+    return new EmbedBuilder()
+        .setAuthor({ name: `${icon} แนะนำยอดนิยมวันนี้` })
         .setTitle(title)
-        .setDescription(description)
-        .setImage(imageUrl) // เปลี่ยนเป็นรูปใหญ่ให้สวยๆ ครับ
+        .setURL(`https://www.themoviedb.org/${type}/${item.id}`)
+        .setDescription(item.overview ? item.overview.substring(0, 250) + '...' : 'ไม่มีเรื่องย่อภาษาไทยสำหรับเรื่องนี้')
         .setColor(color)
-        .setFooter({ text: 'Media Tracker Update' })
+        .setImage(backdropURL) // ใช้รูป Backdrop แนวนอนขนาดใหญ่
+        .addFields(
+            { name: '⭐ คะแนน', value: `${item.vote_average.toFixed(1)}/10`, inline: true },
+            { name: '📅 วันฉาย', value: date ? new Date(date).toLocaleDateString('th-TH') : 'ไม่ระบุ', inline: true }
+        )
+        .setFooter({ text: 'Media Tracker | ข้อมูลจาก TMDB API' })
         .setTimestamp();
-    
-    await webhook.send({ embeds: [embed] });
 }
 
-// --- 1. ระบบเช็กอนิเมะฉายวันนี้ (Jikan API) ---
-async function checkAnimeSchedule() {
+// --- ---
+async function fetchAndSendMediaUpdates() {
     try {
-        const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        const today = days[new Date().getDay()];
+        console.log("🕒 กำลังตรวจสอบข้อมูลหนังและซีรีส์ล่าสุด...");
+
+        // 1. ดึงข้อมูลอนิเมะ/ซีรีส์ (TV) ยอดนิยมวันนี้
+        const tvRes = await axios.get(`https://api.themoviedb.org/3/trending/tv/day?api_key=${TMDB_API_KEY}&language=th-TH`);
+        const topTvShows = tvRes.data.results.slice(0, 3); // ดึงมา 3 เรื่องที่ฮิตที่สุด
+
+        // 2. ดึงข้อมูลหนัง (Movie) ยอดนิยมวันนี้
+        const movieRes = await axios.get(`https://api.themoviedb.org/3/trending/movie/day?api_key=${TMDB_API_KEY}&language=th-TH`);
+        const topMovies = movieRes.data.results.slice(0, 3); // ดึงมา 3 เรื่องที่ฮิตที่สุด
+
+        // สร้างรายการ Embeds ทั้งหมด
+        let allEmbeds = [];
         
-        const res = await axios.get(`https://api.themoviedb.org/3/trending/tv/day?api_key=${TMDB_API_KEY}&language=th-TH`);
-        const anime = res.data.results[0]; // ดึงรายการเด่นมา 1 เรื่อง
+        // เพิ่มอนิเมะ/ซีรีส์
+        topTvShows.forEach(show => allEmbeds.push(createMediaEmbed(show, 'tv')));
+        
+        // เพิ่มหนัง
+        topMovies.forEach(movie => allEmbeds.push(createMediaEmbed(movie, 'movie')));
 
-        if (anime) {
-            await sendNotification(
-                `📺 แนะนำอนิเมะ/ซีรีส์วันนี้: ${anime.name}`,
-                `${anime.overview.substring(0, 200)}...`,
-                `https://image.tmdb.org/t/p/w500${anime.backdrop_path || anime.poster_path}`,
-                '#00ff99'
-            );
-            console.log(`[Media] แจ้งเตือนเรื่อง: ${anime.name}`);
+        // ถ้ามีข้อมูล ให้ส่งเข้า Webhook
+        if (allEmbeds.length > 0) {
+            // Discord จำกัดให้ส่ง Embed ได้ทีละ 10 อัน เราส่งแค่ 6 อันจึงไม่มีปัญหา
+            await webhook.send({ 
+                content: `🚀 **Media Tracker อัปเดตข้อมูลหนังและอนิเมะ/ซีรีส์ยอดนิยมประจำวันที่ ${new Date().toLocaleDateString('th-TH')}**`,
+                embeds: allEmbeds 
+            });
+            console.log(`✅ ส่งข้อมูลสำเร็จ: TV ${topTvShows.length} เรื่อง, Movie ${topMovies.length} เรื่อง`);
         }
-    } catch (e) { console.error("Media Tracker Error:", e.message); }
+
+    } catch (e) {
+        console.error("❌ Media Tracker Error:", e.message);
+    }
 }
 
-// --- 2. ระบบเช็กหนังฮิต (TMDB API) ---
-async function checkNewMovies() {
-    try {
-        const res = await axios.get(`https://api.themoviedb.org/3/trending/movie/day?api_key=${TMDB_API_KEY}&language=th-TH`);
-        const movie = res.data.results[0];
+// --- ---
+console.log("🚀 ระบบ Media Tracker เวอร์ชันอัปเกรดเริ่มทำงานแล้ว...");
 
-        if (movie) {
-            await sendNotification(
-                `🎬 หนังกำลังฮิต: ${movie.title}`,
-                `${movie.overview.substring(0, 200)}...`,
-                `https://image.tmdb.org/t/p/w500${movie.backdrop_path || movie.poster_path}`,
-                '#ffcc00'
-            );
-            console.log(`[Movie] แจ้งเตือนเรื่อง: ${movie.title}`);
-        }
-    } catch (e) { console.error("Movie Tracker Error:", e.message); }
-}
+// สั่งรันครั้งแรกทันทีที่เปิดบอท
+fetchAndSendMediaUpdates();
 
-// สั่งรันครั้งแรกทันทีและตั้งเวลาทุก 12 ชั่วโมง
-console.log("🚀 ระบบ Media Tracker เริ่มทำงานแล้ว...");
-checkAnimeSchedule();
-checkNewMovies();
-
-setInterval(() => {
-    checkAnimeSchedule();
-    checkNewMovies();
-}, 1000 * 60 * 60 * 12);
+// ตั้งเวลาให้ระบบตรวจสอบทุกๆ 12 ชั่วโมง
+setInterval(fetchAndSendMediaUpdates, 1000 * 60 * 60 * 12);
