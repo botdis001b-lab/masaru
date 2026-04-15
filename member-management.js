@@ -4,20 +4,17 @@ const {
     ButtonBuilder, 
     ButtonStyle, 
     EmbedBuilder, 
-    UserSelectMenuBuilder,
-    StringSelectMenuBuilder,
-    StringSelectMenuOptionBuilder
+    UserSelectMenuBuilder
 } = require('discord.js');
 const mongoose = require('mongoose');
 
 // --- [ตั้งค่าระบบหลัก] ---
 const INACTIVE_DAYS = 10; 
-const ROLE_ID = '1356148472851726437'; // ยศที่ควบคุม
-const CHANNEL_ID = '1486030638464237631'; // ห้องรับยศ (หน้าบ้าน)
-const ADMIN_CHANNEL_ID = '1490233799534186627'; // ห้องควบคุม (หลังบ้าน)
-const OWNER_ID = '550122613087666177'; // ID ของพี่ (Admin)
+const ROLE_ID = '1356148472851726437'; 
+const CHANNEL_ID = '1486030638464237631'; 
+const ADMIN_CHANNEL_ID = '1490233799534186627'; 
+const OWNER_ID = '550122613087666177'; 
 
-// Schema สำหรับเก็บเวลาเคลื่อนไหว (ยังคงไว้เพื่อระบบ Auto Cleanup)
 const VoiceActive = mongoose.models.VoiceActive || mongoose.model('VoiceActive', new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     lastActive: { type: Date, default: Date.now }
@@ -25,40 +22,44 @@ const VoiceActive = mongoose.models.VoiceActive || mongoose.model('VoiceActive',
 
 function initMemberManagement(client) {
 
-    // --- [1. หน้าจอ Dashboard Admin - หลังบ้าน] ---
+    // --- [1. Dashboard Admin - ตกแต่งครบ] ---
     client.once(Events.ClientReady, async () => {
         const adminChannel = await client.channels.fetch(ADMIN_CHANNEL_ID).catch(() => null);
         if (!adminChannel) return;
 
-        // ล้างข้อความเก่าของบอทออกก่อน
         const messages = await adminChannel.messages.fetch({ limit: 10 });
         const oldAdminMsgs = messages.filter(m => m.author.id === client.user.id);
         if (oldAdminMsgs.size > 0) await adminChannel.bulkDelete(oldAdminMsgs).catch(() => null);
 
         const adminEmbed = new EmbedBuilder()
-            .setTitle('⚙️ แผงควบคุมการจัดการสมาชิก (Admin Only)')
+            .setTitle('⚙️ แผงควบคุมจัดการสมาชิก (Ultimate Control)')
             .setColor('#ff0000')
+            .setThumbnail(client.user.displayAvatarURL())
             .setDescription(
-                `**เลือกรูปแบบการจัดการ:**\n\n` +
-                `🔍 **เลือกรายชื่อถอดยศ:** ดึงรายชื่อสมาชิกทุกคนมาให้พี่เลือกติ๊กเพื่อถอดยศ\n` +
-                `🧹 **กวาดล้าง Auto:** ถอดเฉพาะคนที่หายไปเกิน ${INACTIVE_DAYS} วัน (ตามฐานข้อมูล)\n` +
-                `💥 **ล้างบางทั้งหมด:** ดึงยศคืนจากทุกคนที่ครอบครองยศนี้ทันที`
+                `### ยินดีต้อนรับกลับครับพี่!\n` +
+                `ระบบนี้ช่วยให้พี่ควบคุมสมาชิกทุกคนได้ดั่งใจ\n\n` +
+                `**เมนูสั่งการ:**\n` +
+                `> 🔍 **เลือกรายชื่อถอดยศ:** ดึงชื่อทุกคนมาให้พี่จิ้มเลือกถอดเอง\n` +
+                `> 🧹 **กวาดล้าง Auto:** ถอดคนที่หายเกิน ${INACTIVE_DAYS} วันอัตโนมัติ\n` +
+                `> 💥 **ล้างบางยศ:** ดึงยศคืนจากทุกคนในเซิร์ฟเวอร์ทันที`
             )
+            .setFooter({ text: 'Masaru Admin Console' })
             .setTimestamp();
 
         const adminRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('open_selector').setLabel('🔍 เลือกรายชื่อถอดยศ').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId('run_cleanup_now').setLabel('🧹 กวาดล้าง Auto').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('force_remove_all').setLabel('💥 ล้างบางทั้งหมด').setStyle(ButtonStyle.Danger)
+            new ButtonBuilder().setCustomId('force_remove_all').setLabel('💥 ล้างบางยศนี้').setStyle(ButtonStyle.Danger)
         );
 
         await adminChannel.send({ embeds: [adminEmbed], components: [adminRow] });
     });
 
-    // --- [2. หน้าจอรับยศสมาชิก - หน้าบ้าน] ---
+    // --- [2. หน้าจอรับยศ (หน้าบ้าน) - ตกแต่งเต็มรูปแบบ] ---
     client.once(Events.ClientReady, async () => {
         const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
         if (!channel) return;
+
         const messages = await channel.messages.fetch({ limit: 10 });
         const oldMessages = messages.filter(msg => msg.author.id === client.user.id);
         if (oldMessages.size > 0) await channel.bulkDelete(oldMessages).catch(() => null);
@@ -66,17 +67,30 @@ function initMemberManagement(client) {
         const embed = new EmbedBuilder()
             .setTitle('🛡️ MASARU MEMBER ACCESS')
             .setColor('#2f3136')
-            .setDescription(`กดปุ่มด้านล่างเพื่อรับยศ <@&${ROLE_ID}>\n*(ระบบจะบันทึกการเข้าห้องเสียงเพื่อยืนยันสถานะ)*`);
+            .setThumbnail(client.user.displayAvatarURL({ dynamic: true }))
+            .setDescription(
+                `### ยืนยันตัวตนเพื่อรับสิทธิ์สมาชิก\n` +
+                `กดปุ่มด้านล่างเพื่อรับยศ <@&${ROLE_ID}>\n\n` +
+                `**เงื่อนไขการรักษายศ:**\n` +
+                `• ต้องมีการเคลื่อนไหวในห้องเสียงอย่างน้อย 1 ครั้งทุกๆ **${INACTIVE_DAYS} วัน**\n` +
+                `• หากโดนถอดยศ สามารถกลับมากดรับใหม่ได้ที่นี่เสมอ`
+            )
+            .addFields(
+                { name: '📊 สถานะเซิร์ฟเวอร์', value: `สมาชิกทั้งหมด: \`${channel.guild.memberCount}\` คน`, inline: true },
+                { name: '🕒 เวลาอัปเดต', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+            )
+            .setFooter({ text: 'Masaru Automation System' });
 
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('get_role').setLabel('✅ ยืนยันตัวตน / รับยศ').setStyle(ButtonStyle.Success)
+            new ButtonBuilder().setCustomId('get_role').setLabel('✅ ยืนยันตัวตน / รับยศ').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setLabel('📊 ดูเลเวล (Web)').setStyle(ButtonStyle.Link).setURL('https://masaru-dashboard.up.railway.app/profile')
         );
+
         await channel.send({ embeds: [embed], components: [row] });
     });
 
-    // --- [3. ระบบจัดการ Interaction] ---
+    // --- [3. ระบบ Interaction] ---
     client.on(Events.InteractionCreate, async (interaction) => {
-        // ส่วนของสมาชิกทั่วไป: รับยศ
         if (interaction.isButton() && interaction.customId === 'get_role') {
             const role = interaction.guild.roles.cache.get(ROLE_ID);
             if (interaction.member.roles.cache.has(ROLE_ID)) {
@@ -84,31 +98,28 @@ function initMemberManagement(client) {
                 return interaction.reply({ content: 'คืนยศเรียบร้อยแล้วครับ', ephemeral: true });
             } else {
                 await interaction.member.roles.add(role);
-                return interaction.reply({ content: 'รับยศเรียบร้อย ยินดีต้อนรับครับ!', ephemeral: true });
+                return interaction.reply({ content: 'ยินดีต้อนรับ! คุณได้รับยศเรียบร้อยแล้ว', ephemeral: true });
             }
         }
 
-        // ส่วนของ Admin (พี่) เท่านั้น
         if (interaction.user.id !== OWNER_ID) return;
 
-        // 3.1 ปุ่มเรียกเมนูเลือกรายชื่อ
+        // เมนูเลือกรายชื่อ
         if (interaction.isButton() && interaction.customId === 'open_selector') {
             const userSelect = new UserSelectMenuBuilder()
                 .setCustomId('mass_kick_select')
-                .setPlaceholder('เลือกสมาชิกที่ต้องการถอดยศ (เลือกได้หลายคน)...')
+                .setPlaceholder('จิ้มชื่อสมาชิกที่พี่ต้องการถอดยศ...')
                 .setMinValues(1)
                 .setMaxValues(25);
 
             const row = new ActionRowBuilder().addComponents(userSelect);
-            return interaction.reply({ content: '📌 **กรุณาเลือกรายชื่อที่ต้องการถอดยศ:**', components: [row], ephemeral: true });
+            return interaction.reply({ content: '📌 **กรุณาเลือกชื่อคนที่พี่จะถอดยศครับ (เลือกได้หลายคน):**', components: [row], ephemeral: true });
         }
 
-        // 3.2 เมื่อเลือกรายชื่อเสร็จแล้วสั่งถอด
         if (interaction.isUserSelectMenu() && interaction.customId === 'mass_kick_select') {
             await interaction.deferUpdate();
             const selectedIds = interaction.values;
             let count = 0;
-
             for (const uid of selectedIds) {
                 const member = await interaction.guild.members.fetch(uid).catch(() => null);
                 if (member && member.roles.cache.has(ROLE_ID) && !member.permissions.has('Administrator')) {
@@ -116,19 +127,19 @@ function initMemberManagement(client) {
                     count++;
                 }
             }
-            return interaction.followUp({ content: `✅ ถอดยศสมาชิกที่พี่เลือกไปทั้งหมด \`${count}\` คน เรียบร้อยครับ!`, ephemeral: true });
+            return interaction.followUp({ content: `✅ เรียบร้อยครับพี่! ถอดยศจากคนที่เลือกไป \`${count}\` คน`, ephemeral: true });
         }
 
-        // 3.3 ปุ่มกวาดล้าง Auto (ตามฐานข้อมูล 10 วัน)
+        // ปุ่มกวาดล้าง Auto
         if (interaction.isButton() && interaction.customId === 'run_cleanup_now') {
-            await interaction.reply({ content: '🧹 กำลังสแกนหาคนที่หายไปเกินกำหนด...', ephemeral: true });
+            await interaction.reply({ content: '🧹 กำลังสแกนถอดคนที่หายไปเกินกำหนด...', ephemeral: true });
             const count = await runCleanupLogic(client);
-            return interaction.followUp({ content: `✅ กวาดล้างเสร็จ! ถอดยศไป \`${count}\` คน`, ephemeral: true });
+            return interaction.followUp({ content: `✅ กวาดล้างเสร็จสิ้น! ถอดไปทั้งหมด \`${count}\` คน`, ephemeral: true });
         }
 
-        // 3.4 ปุ่มล้างบางทั้งหมด (ทุกคนมียศโดนหมด)
+        // ปุ่มล้างบางทั้งหมด
         if (interaction.isButton() && interaction.customId === 'force_remove_all') {
-            await interaction.reply({ content: '⚠️ กำลังดึงยศคืนจากสมาชิกทุกคนในดิสคอร์ด...', ephemeral: true });
+            await interaction.reply({ content: '⚠️ กำลังดึงยศคืนจากทุกคนในเซิร์ฟเวอร์...', ephemeral: true });
             const role = interaction.guild.roles.cache.get(ROLE_ID);
             const members = Array.from(role.members.values());
             let count = 0;
@@ -138,7 +149,7 @@ function initMemberManagement(client) {
                     count++;
                 }
             }
-            return interaction.followUp({ content: `💥 ล้างบางเสร็จสิ้น! ดึงยศคืนไป \`${count}\` คน`, ephemeral: true });
+            return interaction.followUp({ content: `💥 ล้างบางเสร็จ! ดึงยศคืนรวม \`${count}\` คน`, ephemeral: true });
         }
     });
 
