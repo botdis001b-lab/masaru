@@ -1,6 +1,6 @@
 const { EmbedBuilder, Events } = require('discord.js');
 
-// 🚩 ID ห้องสำหรับเก็บ Log ทั้งหมดตามที่พี่ต้องการ
+// 🚩 ID ห้องสำหรับเก็บ Log ตามที่คุณพี่ต้องการ
 const GLOBAL_LOG_CHANNEL_ID = '1494379391327928370'; 
 
 function initSystemLogs(client) {
@@ -13,7 +13,7 @@ function initSystemLogs(client) {
         } catch (e) { console.error("Log Error:", e.message); }
     }
 
-    // 1. Log เมื่อมีคนลบข้อความ
+    // 1. Log เมื่อมีการลบข้อความ
     client.on(Events.MessageDelete, (message) => {
         if (message.author?.bot || !message.content) return;
         const embed = new EmbedBuilder()
@@ -24,7 +24,7 @@ function initSystemLogs(client) {
         sendLog(embed);
     });
 
-    // 2. Log เมื่อมีคนแก้ไขข้อความ
+    // 2. Log เมื่อมีการแก้ไขข้อความ
     client.on(Events.MessageUpdate, (oldMsg, newMsg) => {
         if (oldMsg.author?.bot || oldMsg.content === newMsg.content) return;
         const embed = new EmbedBuilder()
@@ -39,12 +39,12 @@ function initSystemLogs(client) {
         sendLog(embed);
     });
 
-    // 3. Log เมื่อสมาชิกเข้า/ออกเซิร์ฟเวอร์
+    // 3. Log เมื่อสมาชิกเข้า/ออก
     client.on(Events.GuildMemberAdd, (member) => {
         const embed = new EmbedBuilder()
             .setColor('#2ecc71')
             .setAuthor({ name: '📥 สมาชิกเข้าใหม่' })
-            .setDescription(`**${member.user.tag}** เพิ่งเข้าร่วมเซิร์ฟเวอร์\nID: ${member.id}`)
+            .setDescription(`**${member.user.tag}** เข้าร่วมเซิร์ฟเวอร์\nID: ${member.id}`)
             .setTimestamp();
         sendLog(embed);
     });
@@ -52,26 +52,10 @@ function initSystemLogs(client) {
     client.on(Events.GuildMemberRemove, (member) => {
         const embed = new EmbedBuilder()
             .setColor('#e74c3c')
-            .setAuthor({ name: '📤 สมาชิกออกไปแล้ว' })
+            .setAuthor({ name: '📤 สมาชิกออก' })
             .setDescription(`**${member.user.tag}** ออกจากเซิร์ฟเวอร์ไปแล้ว`)
             .setTimestamp();
         sendLog(embed);
-    });
-
-    // 4. Log เมื่อมีคนเปลี่ยนชื่อเล่น
-    client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
-        if (oldMember.nickname !== newMember.nickname) {
-            const embed = new EmbedBuilder()
-                .setColor('#3498db')
-                .setAuthor({ name: '📛 เปลี่ยนชื่อเล่น' })
-                .setDescription(`**${newMember.user.tag}** เปลี่ยนชื่อเล่น`)
-                .addFields(
-                    { name: 'เดิม', value: oldMember.nickname || 'ไม่มี', inline: true },
-                    { name: 'ใหม่', value: newMember.nickname || 'ไม่มี', inline: true }
-                )
-                .setTimestamp();
-            sendLog(embed);
-        }
     });
 }
 
