@@ -1,11 +1,17 @@
 const { Client, GatewayIntentBits, ActivityType, Events, EmbedBuilder } = require('discord.js');
 const mongoose = require('mongoose');
 
-// --- [1. เชื่อมต่อ Database] ---
+// --- [1. เชื่อมต่อ Database แบบปลอดภัย] ---
+// ปรับปรุง: เพิ่ม Error Handling เพื่อไม่ให้บอทดับถ้าใส่รหัสผ่านผิด
 if (mongoose.connection.readyState === 0) {
-    mongoose.connect(process.env.MONGO_URL)
-        .then(() => console.log('Bot DB Connected! ✅'))
-        .catch(err => console.error('DB Error:', err));
+    mongoose.connect(process.env.MONGO_URL, {
+        serverSelectionTimeoutMS: 5000 
+    })
+    .then(() => console.log('Bot DB Connected! ✅'))
+    .catch(err => {
+        console.error('❌ DB Error (เช็ครหัสผ่านใน Railway):', err.message);
+        console.log('⚠️ บอทจะเริ่มทำงานต่อโดยไม่มีระบบ Database...');
+    });
 }
 
 // Schema สำหรับระบบ XP
@@ -21,21 +27,21 @@ const client = new Client({
         GatewayIntentBits.GuildMessages, 
         GatewayIntentBits.MessageContent, 
         GatewayIntentBits.GuildMembers, 
-        GatewayIntentBits.GuildVoiceStates // จำเป็นสำหรับ Log เสียงและเช็กคนหาย
+        GatewayIntentBits.GuildVoiceStates 
     ]
 });
 
-module.exports = { client }; // ส่งออก client ให้ไฟล์อื่นใช้งาน
+module.exports = { client };
 
 // --- [2. โหลดระบบแยก] ---
-require('./media-tracker.js'); // ระบบแจ้งเตือนหนัง/อนิเมะ
+require('./media-tracker.js'); 
 const { initMemberManagement } = require('./member-management.js');
-initMemberManagement(client); // ระบบรับยศและเช็กคนหาย 10 วัน
+initMemberManagement(client); 
 
-// --- [3. ตั้งค่า ID ห้องและระบบเก่า] ---
+// --- [3. ตั้งค่า ID ห้อง] ---
 const WELCOME_CHANNEL_ID = '1205000338382524416'; 
 const LOG_CHANNEL_ID = '1204742409347534900';     
-const CLOCK_CHANNEL_ID = '1483918700976410694'; // ID ห้อง #วัน-เวลา
+const CLOCK_CHANNEL_ID = '1483918700976410694'; 
 
 // ระบบ Welcome
 client.on(Events.GuildMemberAdd, async (member) => {
@@ -83,37 +89,45 @@ function getClockText() {
 
 client.once(Events.ClientReady, async (c) => {
     console.log(`Ready! Logged in as ${c.user.tag}`);
-    client.user.setActivity('Masaru Dashboard', { type: ActivityType.Watching });
+    // ปรับปรุง: แจ้งสถานะบอทให้ชัดเจน
+    client.user.setActivity('Masaru Bot v2', { type: ActivityType.Playing });
 
-    // รันนาฬิกาทุก 1 นาที
     setInterval(async () => {
         const channel = await client.channels.fetch(CLOCK_CHANNEL_ID).catch(() => null);
         if (channel) {
             const messages = await channel.messages.fetch({ limit: 5 });
             const botMsg = messages.find(m => m.author.id === client.user.id);
             const content = `🕒 **นาฬิกาดิจิทัล**\n${getClockText()}\n📅 ${new Date().toLocaleDateString('th-TH', { dateStyle: 'long' })}`;
-            if (botMsg) await botMsg.edit(content);
-            else await channel.send(content);
+            if (botMsg) await botMsg.edit(content).catch(() => null);
+            else await channel.send(content).catch(() => null);
         }
     }, 60000);
 });
 
-// ระบบ XP
+// ระบบ XP (เพิ่มการดักจับ Error กรณี DB เชื่อมไม่ได้)
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot || !message.guild) return;
+    
+    // คำสั่งเช็คสเตตัส
     if (message.content === '!stat') {
+        if (mongoose.connection.readyState !== 1) return message.reply("❌ ระบบฐานข้อมูลขัดข้อง ไม่สามารถเรียกดูข้อมูลได้");
         const data = await User.findOne({ userId: message.author.id });
         if (data) return message.reply(`📊 **สถานะของคุณ ${message.author.username}**\n⭐ เลเวล: ${data.level}\n✨ XP: ${data.xp}/${data.level * 100}`);
+        else return message.reply("ยังไม่มีข้อมูลของคุณในระบบ ลองพิมพ์อะไรสักอย่างดูนะ!");
     }
-    try {
-        let data = await User.findOne({ userId: message.author.id }) || new User({ userId: message.author.id });
-        data.xp += 20;
-        if (data.xp >= (data.level * 100)) {
-            data.level += 1;
-            message.reply(`🎉 ยินดีด้วย! เลเวลอัปเป็น **${data.level}**!`);
-        }
-        await data.save();
-    } catch (e) {}
+
+    // เพิ่ม XP
+    if (mongoose.connection.readyState === 1) {
+        try {
+            let data = await User.findOne({ userId: message.author.id }) || new User({ userId: message.author.id });
+            data.xp += 20;
+            if (data.xp >= (data.level * 100)) {
+                data.level += 1;
+                message.reply(`🎉 ยินดีด้วย! เลเวลอัปเป็น **${data.level}**!`);
+            }
+            await data.save();
+        } catch (e) { console.error("XP System Error:", e.message); }
+    }
 });
 
-client.login(process.env.TOKEN); 
+client.login(process.env.TOKEN);
