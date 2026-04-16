@@ -116,4 +116,4 @@ client.on(Events.MessageCreate, async (message) => {
     } catch (e) {}
 });
 
-client.login(process.env.TOKEN);
+client.login(process.env.TOKEN); 
