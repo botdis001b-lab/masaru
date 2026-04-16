@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, ActivityType, Events, EmbedBuilder } = requir
 const mongoose = require('mongoose');
 
 // --- [1. เชื่อมต่อ Database แบบปลอดภัย] ---
-// ปรับปรุง: เพิ่ม Error Handling เพื่อไม่ให้บอทดับถ้าใส่รหัสผ่านผิด
+// ปรับปรุง: เพิ่มการดัก Error เพื่อไม่ให้บอทดับถ้า Database มีปัญหา (เช่น รหัสผ่านผิด)
 if (mongoose.connection.readyState === 0) {
     mongoose.connect(process.env.MONGO_URL, {
         serverSelectionTimeoutMS: 5000 
@@ -10,7 +10,7 @@ if (mongoose.connection.readyState === 0) {
     .then(() => console.log('Bot DB Connected! ✅'))
     .catch(err => {
         console.error('❌ DB Error (เช็ครหัสผ่านใน Railway):', err.message);
-        console.log('⚠️ บอทจะเริ่มทำงานต่อโดยไม่มีระบบ Database...');
+        console.log('⚠️ บอทจะเริ่มทำงานต่อโดยไม่มีระบบ Database (ระบบ XP จะใช้งานไม่ได้)...');
     });
 }
 
@@ -31,19 +31,22 @@ const client = new Client({
     ]
 });
 
-module.exports = { client };
+module.exports = { client }; // ส่งออก client ให้ระบบอื่นใช้งาน
 
 // --- [2. โหลดระบบแยก] ---
+// ดึงระบบ Media Tracker, ระบบจัดการสมาชิก และระบบ Log เข้ามาทำงาน
 require('./media-tracker.js'); 
 const { initMemberManagement } = require('./member-management.js');
-initMemberManagement(client); 
+const { initSystemLogs } = require('./system-logs.js');
 
-// --- [3. ตั้งค่า ID ห้อง] ---
+initMemberManagement(client); 
+initSystemLogs(client); // ระบบ Global Log (จับคนลบข้อความ/เข้าออก)
+
+// --- [3. ตั้งค่า ID ห้องสำคัญ] ---
 const WELCOME_CHANNEL_ID = '1205000338382524416'; 
-const LOG_CHANNEL_ID = '1204742409347534900';     
 const CLOCK_CHANNEL_ID = '1483918700976410694'; 
 
-// ระบบ Welcome
+// ระบบ Welcome แจ้งเตือนคนเข้าใหม่
 client.on(Events.GuildMemberAdd, async (member) => {
     try {
         const channel = await client.channels.fetch(WELCOME_CHANNEL_ID);
@@ -59,22 +62,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
     } catch (e) { console.error("Welcome Error:", e); }
 });
 
-// ระบบ Voice Log
-client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
-    try {
-        const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
-        if (!logChannel) return;
-        const user = newState.member.user;
-        const time = new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' });
-        if (!oldState.channelId && newState.channelId) {
-            await logChannel.send(`\`\`\`diff\n+ [เข้าห้อง] ${user.username} -> ${newState.channel.name} (${time})\n\`\`\``);
-        } else if (oldState.channelId && !newState.channelId) {
-            await logChannel.send(`\`\`\`diff\n- [ออกห้อง] ${user.username} -> ${oldState.channel.name} (${time})\n\`\`\``);
-        }
-    } catch (e) { console.error("Voice Log Error:", e); }
-});
-
-// --- [4. ระบบนาฬิกา ASCII] ---
+// --- [4. ระบบนาฬิกาดิจิทัล ASCII] ---
 const asciiDigits = { '0': ["  ████  ", " ██  ██ ", " ██  ██ ", " ██  ██ ", "  ████  "], '1': ["   ██   ", "  ███   ", "   ██   ", "   ██   ", "  ████  "], '2': [" █████  ", "     ██ ", "  █████ ", " ██     ", " ██████ "], '3': [" █████  ", "     ██ ", "  █████ ", "     ██ ", " █████  "], '4': [" ██  ██ ", " ██  ██ ", " ██████ ", "     ██ ", "     ██ "], '5': [" ██████ ", " ██     ", " █████  ", "     ██ ", " █████  "], '6': ["  ████  ", " ██     ", " █████  ", " ██  ██ ", "  ████  "], '7': [" ██████ ", "     ██ ", "    ██  ", "   ██   ", "   ██   "], '8': ["  ████  ", " ██  ██ ", "  ████  ", " ██  ██ ", "  ████  "], '9': ["  ████  ", " ██  ██ ", "  █████ ", "     ██ ", "  ████  "], ':': ["        ", "   ██   ", "        ", "   ██   ", "        "] };
 
 function getClockText() {
@@ -88,10 +76,10 @@ function getClockText() {
 }
 
 client.once(Events.ClientReady, async (c) => {
-    console.log(`Ready! Logged in as ${c.user.tag}`);
-    // ปรับปรุง: แจ้งสถานะบอทให้ชัดเจน
-    client.user.setActivity('Masaru Bot v2', { type: ActivityType.Playing });
+    console.log(`✅ Ready! Logged in as ${c.user.tag}`);
+    client.user.setActivity('Masaru System v2', { type: ActivityType.Watching });
 
+    // รันนาฬิกาทุก 1 นาที
     setInterval(async () => {
         const channel = await client.channels.fetch(CLOCK_CHANNEL_ID).catch(() => null);
         if (channel) {
@@ -104,29 +92,29 @@ client.once(Events.ClientReady, async (c) => {
     }, 60000);
 });
 
-// ระบบ XP (เพิ่มการดักจับ Error กรณี DB เชื่อมไม่ได้)
+// --- [5. ระบบ XP & สเตตัส] ---
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot || !message.guild) return;
     
-    // คำสั่งเช็คสเตตัส
+    // คำสั่งเช็คสเตตัสตัวเอง
     if (message.content === '!stat') {
-        if (mongoose.connection.readyState !== 1) return message.reply("❌ ระบบฐานข้อมูลขัดข้อง ไม่สามารถเรียกดูข้อมูลได้");
+        if (mongoose.connection.readyState !== 1) return message.reply("❌ ระบบฐานข้อมูลขัดข้อง (เช็ครหัสผ่านใน Railway)");
         const data = await User.findOne({ userId: message.author.id });
         if (data) return message.reply(`📊 **สถานะของคุณ ${message.author.username}**\n⭐ เลเวล: ${data.level}\n✨ XP: ${data.xp}/${data.level * 100}`);
-        else return message.reply("ยังไม่มีข้อมูลของคุณในระบบ ลองพิมพ์อะไรสักอย่างดูนะ!");
+        else return message.reply("ยังไม่มีข้อมูลของคุณในระบบ ลองพิมพ์ข้อความคุยดูนะ!");
     }
 
-    // เพิ่ม XP
+    // ระบบเพิ่ม XP อัตโนมัติเมื่อพิมพ์
     if (mongoose.connection.readyState === 1) {
         try {
             let data = await User.findOne({ userId: message.author.id }) || new User({ userId: message.author.id });
             data.xp += 20;
             if (data.xp >= (data.level * 100)) {
                 data.level += 1;
-                message.reply(`🎉 ยินดีด้วย! เลเวลอัปเป็น **${data.level}**!`);
+                message.reply(`🎉 ยินดีด้วยคุณ **${message.author.username}**! เลเวลอัปเป็น **${data.level}** แล้ว!`);
             }
             await data.save();
-        } catch (e) { console.error("XP System Error:", e.message); }
+        } catch (e) { console.error("XP Error:", e.message); }
     }
 });
 
