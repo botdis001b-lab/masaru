@@ -8,8 +8,8 @@ if (mongoose.connection.readyState === 0) {
     })
     .then(() => console.log('Bot DB Connected! ✅'))
     .catch(err => {
-        console.error('❌ DB Error (เช็ครหัสผ่านใน Railway):', err.message);
-        console.log('⚠️ บอทจะเริ่มทำงานต่อโดยไม่มีระบบ Database (ระบบ XP จะใช้งานไม่ได้)...');
+        console.error('❌ DB Error (เช็ค MONGO_URL ใน Railway):', err.message);
+        console.log('⚠️ บอททำงานต่อโดยไม่มีระบบ Database (XP จะไม่ขยับ)...');
     });
 }
 
@@ -40,10 +40,10 @@ const { initSystemLogs } = require('./system-logs.js');
 initMemberManagement(client); 
 initSystemLogs(client); 
 
-// --- [3. ตั้งค่า ID ห้องสำคัญ] ---
+// --- [3. ตั้งค่า ID ห้อง] ---
 const CLOCK_CHANNEL_ID = '1483918700976410694'; 
 
-// --- [4. ระบบนาฬิกาดิจิทัล ASCII] ---
+// --- [4. ระบบนาฬิกา ASCII] ---
 const asciiDigits = { '0': ["  ████  ", " ██  ██ ", " ██  ██ ", " ██  ██ ", "  ████  "], '1': ["   ██   ", "  ███   ", "   ██   ", "   ██   ", "  ████  "], '2': [" █████  ", "     ██ ", "  █████ ", " ██     ", " ██████ "], '3': [" █████  ", "     ██ ", "  █████ ", "     ██ ", " █████  "], '4': [" ██  ██ ", " ██  ██ ", " ██████ ", "     ██ ", "     ██ "], '5': [" ██████ ", " ██     ", " █████  ", "     ██ ", " █████  "], '6': ["  ████  ", " ██     ", " █████  ", " ██  ██ ", "  ████  "], '7': [" ██████ ", "     ██ ", "    ██  ", "   ██   ", "   ██   "], '8': ["  ████  ", " ██  ██ ", "  ████  ", " ██  ██ ", "  ████  "], '9': ["  ████  ", " ██  ██ ", "  █████ ", "     ██ ", "  ████  "], ':': ["        ", "   ██   ", "        ", "   ██   ", "        "] };
 
 function getClockText() {
@@ -57,7 +57,7 @@ function getClockText() {
 }
 
 client.once(Events.ClientReady, async (c) => {
-    console.log(`✅ Ready! Logged in as ${c.user.tag}`);
+    console.log(`✅ บอทออนไลน์แล้ว: ${c.user.tag}`);
     client.user.setActivity('Masaru System v2', { type: ActivityType.Watching });
 
     setInterval(async () => {
@@ -73,19 +73,14 @@ client.once(Events.ClientReady, async (c) => {
     }, 60000);
 });
 
-// --- [5. ระบบ XP & สเตตัส] ---
+// ระบบ XP
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot || !message.guild) return;
-    
     if (message.content === '!stat') {
-        if (mongoose.connection.readyState !== 1) return message.reply("❌ ระบบฐานข้อมูลขัดข้อง (เช็ครหัสผ่านใน Railway)");
-        try {
-            const data = await User.findOne({ userId: message.author.id });
-            if (data) return message.reply(`📊 **สถานะของคุณ ${message.author.username}**\n⭐ เลเวล: ${data.level}\n✨ XP: ${data.xp}/${data.level * 100}`);
-            else return message.reply("ยังไม่มีข้อมูลในระบบ ลองพิมพ์ข้อความคุยดูนะ!");
-        } catch (e) { console.error(e); }
+        if (mongoose.connection.readyState !== 1) return message.reply("❌ ฐานข้อมูลยังไม่เชื่อมต่อ");
+        const data = await User.findOne({ userId: message.author.id });
+        if (data) return message.reply(`📊 **Status ของ ${message.author.username}**\n⭐ Level: ${data.level}\n✨ XP: ${data.xp}/${data.level * 100}`);
     }
-
     if (mongoose.connection.readyState === 1) {
         try {
             let data = await User.findOne({ userId: message.author.id }) || new User({ userId: message.author.id });
