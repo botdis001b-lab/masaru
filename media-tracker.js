@@ -20,24 +20,30 @@ async function fetchAndSendMediaUpdates() {
             axios.get(`https://api.themoviedb.org/3/trending/movie/day?api_key=${TMDB_API_KEY}&language=th-TH`)
         ]);
 
-        const topMedia = [...tvRes.data.results.slice(0, 3).map(i => ({...i, type:'tv'})), ...movieRes.data.results.slice(0, 3).map(i => ({...i, type:'movie'}))];
-        let embeds = [];
+        const topMedia = [
+            ...tvRes.data.results.slice(0, 3).map(i => ({ ...i, type: 'tv' })),
+            ...movieRes.data.results.slice(0, 3).map(i => ({ ...i, type: 'movie' }))
+        ];
 
+        let embeds = [];
         for (const item of topMedia) {
             const key = `${item.type}-${item.id}`;
-            if (!(await MediaLog.findOne({ mediaId: key }))) {
+            const exists = await MediaLog.findOne({ mediaId: key });
+            
+            if (!exists) {
                 const embed = new EmbedBuilder()
                     .setTitle(item.title || item.name)
-                    .setColor(item.type === 'movie' ? '#ffcc00' : '#00ff99')
+                    .setURL(`https://www.themoviedb.org/${item.type}/${item.id}`)
                     .setImage(`https://image.tmdb.org/t/p/w780${item.backdrop_path}`)
-                    .setFooter({ text: 'Media Tracker | กันส่งซ้ำ' });
+                    .setColor(item.type === 'movie' ? '#ffcc00' : '#00ff99')
+                    .setFooter({ text: 'Media Tracker | ป้องกันส่งซ้ำ' });
                 embeds.push(embed);
                 await new MediaLog({ mediaId: key }).save();
             }
         }
 
-        if (embeds.length > 0) await webhook.send({ content: '🚀 **รายการใหม่ประจำวัน!**', embeds });
-    } catch (e) { console.error("Media Error:", e.message); }
+        if (embeds.length > 0) await webhook.send({ content: '🚀 **รายการใหม่แนะนำวันนี้!**', embeds });
+    } catch (e) { console.error(e.message); }
 }
 
 setTimeout(fetchAndSendMediaUpdates, 15000);
