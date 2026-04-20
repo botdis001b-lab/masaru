@@ -3,10 +3,20 @@ const mongoose = require('mongoose');
 
 // --- [1. เชื่อมต่อ Database] ---
 if (mongoose.connection.readyState === 0) {
-    mongoose.connect(process.env.MONGO_URL, { serverSelectionTimeoutMS: 5000 })
+    mongoose.connect(process.env.MONGO_URL, { 
+        serverSelectionTimeoutMS: 5000 
+    })
     .then(() => console.log('Bot DB Connected! ✅'))
-    .catch(err => console.error('❌ DB Error:', err.message));
+    .catch(err => console.error('❌ DB Error (เช็ค MONGO_URL):', err.message));
 }
+
+// Schema สำหรับระบบเลเวล
+const UserSchema = new mongoose.Schema({
+    userId: { type: String, required: true, unique: true },
+    xp: { type: Number, default: 0 },
+    level: { type: Number, default: 1 }
+});
+const User = mongoose.models.User || mongoose.model('User', UserSchema);
 
 const client = new Client({
     intents: [
@@ -21,17 +31,15 @@ const client = new Client({
 // --- [2. โหลดระบบแยก] ---
 require('./media-tracker.js'); 
 const { initSystemLogs } = require('./system-logs.js');
-initSystemLogs(client); // ระบบใหม่ส่งเข้าห้อง 928370
+initSystemLogs(client); 
 
-// --- [3. ตั้งค่า ID ห้อง Log ระบบเก่า (|-in-out)] ---
-const OLD_LOG_CHANNEL_ID = '1204742409347534900'; 
+const OLD_LOG_CHANNEL_ID = '1204742409347534900'; // ห้อง |-in-out
 
-// 🔊 ระบบ Log ห้องเสียง (รูปแบบ diff สีเขียว/แดง)
+// 🔊 ระบบ Log ห้องเสียง (รูปแบบ diff เดิมเป๊ะ)
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     try {
         const channel = await client.channels.fetch(OLD_LOG_CHANNEL_ID).catch(() => null);
         if (!channel) return;
-
         const user = newState.member.user;
         const time = new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour12: false });
 
@@ -46,19 +54,56 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 });
 
 // 📥 ระบบคนเข้า-ออกเซิร์ฟเวอร์
-client.on(Events.GuildMemberAdd, async (member) => {
-    const channel = await client.channels.fetch(OLD_LOG_CHANNEL_ID).catch(() => null);
-    if (channel) await channel.send(`\`\`\`diff\n+ [สมาชิกใหม่] ${member.user.username} ได้เข้าร่วมกลุ่มแล้ว\n\`\`\``);
+client.on(Events.GuildMemberAdd, async (m) => {
+    const ch = await client.channels.fetch(OLD_LOG_CHANNEL_ID).catch(() => null);
+    if (ch) await ch.send(`\`\`\`diff\n+ [สมาชิกใหม่] ${m.user.username} เข้าร่วมเซิร์ฟเวอร์\n\`\`\``);
 });
 
-client.on(Events.GuildMemberRemove, async (member) => {
-    const channel = await client.channels.fetch(OLD_LOG_CHANNEL_ID).catch(() => null);
-    if (channel) await channel.send(`\`\`\`diff\n- [สมาชิกออก] ${member.user.username} ได้ออกจากกลุ่มไปแล้ว\n\`\`\``);
+client.on(Events.GuildMemberRemove, async (m) => {
+    const ch = await client.channels.fetch(OLD_LOG_CHANNEL_ID).catch(() => null);
+    if (ch) await ch.send(`\`\`\`diff\n- [สมาชิกออก] ${m.user.username} ออกจากเซิร์ฟเวอร์\n\`\`\``);
+});
+
+// ⭐ [3. ระบบเลเวล และ XP] ⭐
+const cooldowns = new Set();
+
+client.on(Events.MessageCreate, async (message) => {
+    if (message.author.bot || !message.guild) return;
+
+    // คำสั่งเช็คเลเวล
+    if (message.content === '!level') {
+        if (mongoose.connection.readyState !== 1) return message.reply("❌ ระบบฐานข้อมูลไม่พร้อม");
+        const data = await User.findOne({ userId: message.author.id });
+        if (!data) return message.reply("ยังไม่มีข้อมูล ลองพิมพ์คุยกันก่อนนะ!");
+        return message.reply(`📊 **${message.author.username}** | เลเวล: ${data.level} | XP: ${data.xp}/${data.level * 100}`);
+    }
+
+    // ระบบเพิ่ม XP (Cooldown 1 นาที)
+    if (cooldowns.has(message.author.id)) return;
+
+    try {
+        if (mongoose.connection.readyState === 1) {
+            let data = await User.findOne({ userId: message.author.id });
+            if (!data) data = new User({ userId: message.author.id });
+
+            data.xp += Math.floor(Math.random() * 11) + 15; // สุ่ม 15-25 XP
+
+            if (data.xp >= data.level * 100) {
+                data.xp = 0;
+                data.level += 1;
+                message.reply(`🎊 ยินดีด้วยคุณ **${message.author.username}**! เลเวลอัปเป็น **${data.level}**!`);
+            }
+
+            await data.save();
+            cooldowns.add(message.author.id);
+            setTimeout(() => cooldowns.delete(message.author.id), 60000);
+        }
+    } catch (e) { console.error("XP Error:", e.message); }
 });
 
 client.once(Events.ClientReady, (c) => {
-    console.log(`✅ บอทออนไลน์แล้ว: ${c.user.tag}`);
-    client.user.setActivity('ระบบ Log แยกห้อง', { type: ActivityType.Watching });
+    console.log(`✅ บอท Masaru ออนไลน์แล้ว (ระบบเลเวล & Log แยกห้อง)`);
+    client.user.setActivity('พิมพ์ !level เพื่อเช็คสเตตัส', { type: ActivityType.Watching });
 });
 
 client.login(process.env.TOKEN);
